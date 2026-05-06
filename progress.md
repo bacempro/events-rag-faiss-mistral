@@ -2,13 +2,14 @@
 
 ## Metadata
 - Project: Puls-Events RAG POC — OpenClassrooms Data Engineer Project 11
-- Current step: Step 2 — Collect and preprocess OpenAgenda data
-- Status: Step 2 completed and locally validated by user
-- Last updated: 2026-05-04
+- Current step: Step 3 — Build the FAISS vector database
+- Status: Step 3 completed and locally validated by user
+- Last updated: 2026-05-06
 - Source files reviewed:
   - `Project11_PlusEvents_Exercice_text.txt`
   - `project11_pulsevents_plan.md`
   - `openclassrooms_project_agent_prompt.md`
+  - `progress.md`
 - Related project files:
   - `requirements.txt`
   - `environment.yml`
@@ -26,6 +27,13 @@
   - `data/processed/events_clean.csv`
   - `data/processed/events_rejected.json`
   - `tests/test_events_data.py`
+  - `scripts/build_faiss_index.py`
+  - `scripts/search_faiss_index.py`
+  - `tests/test_vectorstore_data.py`
+  - `vectorstore/faiss_index/index.faiss`
+  - `vectorstore/faiss_index/index.pkl`
+  - `vectorstore/faiss_index/build_metadata.json`
+
 
 ## Step 1 — Prepare the development environment
 - Date added: 2026-05-04
@@ -498,3 +506,280 @@ pytest tests/test_events_data.py -v
 - Later change notes affecting this step:
   - None.
 
+## Step 3 — Build the FAISS vector database
+- Date added: 2026-05-06
+- Status: Completed and locally validated by user
+
+### Step Goal
+- Convert cleaned Paris OpenAgenda event texts into semantic vectors using Mistral embeddings.
+- Split event text into chunks before vectorization.
+- Build a persisted FAISS CPU vectorstore with LangChain integration.
+- Store compact event metadata linked to each indexed chunk.
+- Add a semantic search smoke-test script.
+- Add vectorstore integrity tests that validate stable invariants without depending on one exact extraction date or fixed event count.
+
+### Constraints
+- Input dataset: `data/processed/events_clean.csv` from Step 2.
+- Embedding provider: Mistral embeddings API.
+- Embedding model: `mistral-embed` by default through `MISTRAL_EMBEDDING_MODEL`.
+- Vector database: FAISS CPU backend.
+- LangChain integration must be used for FAISS and Mistral.
+- Output vectorstore path: `vectorstore/faiss_index/`.
+- Do not implement full RAG answer generation or chatbot behavior in Step 3; that belongs to Step 4.
+- Do not include `description` in vectorstore metadata because semantic content is already stored in `text_for_embedding` and chunk `page_content`.
+- Tests must avoid brittle assertions tied to a specific run, such as exact source event count, exact chunk count, fixed API lower-bound date, specific event titles, or exact FAISS scores.
+
+### Work Completed
+- Confirmed Step 3 implementation recommendations:
+  - Use Mistral embeddings API.
+  - Use FAISS CPU.
+  - Use LangChain FAISS vectorstore.
+  - Use `data/processed/events_clean.csv` as input.
+  - Persist vectorstore under `vectorstore/faiss_index/`.
+- Verified required local setup before implementation:
+  - Conda environment `local-ai-rag` active.
+  - `langchain_mistralai` import works.
+  - `langchain_community.vectorstores.FAISS` import works.
+  - `.env` contains `MISTRAL_API_KEY`.
+  - `data/processed/events_clean.csv` exists.
+  - `text_for_embedding` has no empty values.
+- Created FAISS build script:
+  - `scripts/build_faiss_index.py`
+- The build script:
+  - loads `.env`
+  - validates `MISTRAL_API_KEY`
+  - reads `data/processed/events_clean.csv`
+  - validates required source columns
+  - converts event rows into LangChain `Document` objects
+  - splits event documents with `RecursiveCharacterTextSplitter`
+  - adds chunk metadata including `chunk_index`, `chunk_id`, and `chunk_text_length`
+  - creates embeddings with `MistralAIEmbeddings(model=embedding_model)`
+  - builds a LangChain FAISS vectorstore
+  - saves the vectorstore locally
+  - writes `build_metadata.json`
+- User adjusted the initial build script:
+  - removed `description` from metadata
+  - removed `description` from `REQUIRED_COLUMNS`
+  - removed `description` from `required_metadata_fields`
+  - changed `MistralAIEmbeddings(api_key=...)` to `MistralAIEmbeddings(model=embedding_model)` so Mistral reads `MISTRAL_API_KEY` from the environment directly
+  - kept explicit `MISTRAL_API_KEY` validation before constructing the embeddings client
+- User ran the FAISS build locally and confirmed success.
+- Build result confirmed by user:
+  - Loaded events: `1030`
+  - Created documents: `1030`
+  - Created chunks: `1898`
+  - Output directory reset: `vectorstore/faiss_index`
+  - `tokenizer.json` downloaded successfully during build
+  - FAISS vectorstore saved successfully
+  - `build_metadata.json` saved successfully
+- Created semantic search script:
+  - `scripts/search_faiss_index.py`
+- The search script:
+  - loads `.env`
+  - validates `MISTRAL_API_KEY`
+  - loads the persisted FAISS vectorstore from `vectorstore/faiss_index/`
+  - uses `allow_dangerous_deserialization=True` only for locally generated LangChain FAISS pickle metadata
+  - supports default smoke-test queries
+  - supports custom query and `--top-k`
+  - prints ranked results with FAISS distance, metadata, and chunk preview
+- Created vectorstore integrity tests:
+  - `tests/test_vectorstore_data.py`
+- The tests validate:
+  - required vectorstore files exist and are non-empty
+  - `build_metadata.json` is coherent
+  - build metadata matches the current processed source dataset
+  - FAISS index vector count matches the LangChain docstore count
+  - FAISS index vector count matches the metadata `chunk_count`
+  - indexed document chunks have non-empty `page_content`
+  - required metadata fields exist on every indexed chunk
+  - `chunk_id` values are unique
+  - `chunk_index` values are valid non-negative integers
+  - indexed event IDs exist in the processed CSV
+  - every source event has at least one indexed chunk
+  - selected metadata values match source CSV values
+  - indexed city matches configured project scope from `OPENAGENDA_CITY`, defaulting to `Paris`
+  - coordinates are valid numeric latitude/longitude values
+  - indexed dates are parseable and logically ordered
+- User confirmed the Step 3 work and tests are all good locally.
+
+### Key Decisions
+- Decision: Use Mistral embeddings API for vectorization.
+  - Reason: The final project requires Mistral integration, and using Mistral embeddings keeps the FAISS index aligned with the expected stack.
+  - Impact: `MISTRAL_API_KEY` is required from Step 3 onward.
+
+- Decision: Use LangChain's FAISS vectorstore wrapper instead of raw FAISS only.
+  - Reason: Step 4 can directly reuse the saved vectorstore as a retriever in the LangChain RAG pipeline.
+  - Impact: The persisted vectorstore contains both FAISS index data and LangChain pickle metadata files.
+
+- Decision: Use `mistral-embed` as the default embedding model.
+  - Reason: It is the Mistral embedding model selected for semantic vectorization.
+  - Impact: Rebuilding with a different embedding model should be treated as a new vectorstore build and should update `build_metadata.json`.
+
+- Decision: Use chunking before embedding.
+  - Reason: Step 3 requires texts to be cut into chunks before vectorization; chunks improve retrieval granularity and reduce overly broad event-level matches.
+  - Impact: One event can generate multiple vectors; tests must allow `chunk_count >= document_count`.
+
+- Decision: Keep vector metadata compact and exclude `description`.
+  - Reason: `description` is already included in `text_for_embedding` and embedded chunk text; duplicating it in metadata makes `index.pkl` heavier without improving retrieval.
+  - Impact: Step 4 should use retrieved `page_content` for semantic content and metadata for identifiers, dates, location, and display fields.
+
+- Decision: Let `MistralAIEmbeddings` read the API key from the environment instead of passing `api_key` explicitly.
+  - Reason: Passing a string triggered a Pylance type warning because the integration expects a secret-like type; environment-based configuration is cleaner.
+  - Impact: The script still validates `MISTRAL_API_KEY` explicitly before constructing the embeddings client.
+
+- Decision: Include `allow_dangerous_deserialization=True` when loading the local FAISS vectorstore.
+  - Reason: LangChain stores FAISS docstore/metadata in a pickle file, and loading it requires explicit opt-in.
+  - Impact: This is acceptable only because `index.pkl` is generated locally by this project; do not use this flag with untrusted pickle files.
+
+- Decision: Design vectorstore tests as non-brittle structural tests.
+  - Reason: The user explicitly requested tests not tied to one specific lower date, event count, chunk count, or exact run output.
+  - Impact: Tests validate invariants and source/vectorstore consistency rather than fixed extraction values.
+
+### User Questions / Confusions / Problems
+- Question / confusion: User asked whether removing `description` from metadata, required columns, and required metadata fields was clear and correct.
+  - Resolution / explanation: Confirmed correct. `description` is already part of `text_for_embedding`, so metadata should stay compact.
+  - Impact on project: Final vectorstore metadata excludes `description`.
+
+- Question / confusion: User encountered a Pylance warning because `MistralAIEmbeddings(api_key=...)` expected `SecretStr`, not plain `str`.
+  - Resolution / explanation: Keep explicit environment validation, then instantiate `MistralAIEmbeddings(model=embedding_model)` and let the integration read `MISTRAL_API_KEY` from the environment.
+  - Impact on project: Cleaner type-checking and less explicit secret handling in code.
+
+- Question / confusion: User wanted tests that were not deterministic or brittle against the exact current dataset extraction.
+  - Resolution / explanation: Tests were designed around stable vectorstore invariants rather than exact counts, dates, titles, or FAISS scores.
+  - Impact on project: Rebuilding the dataset later should not fail tests solely because OpenAgenda returned a different valid number of events or chunks.
+
+### Learning Notes Discussed
+- Topic: Separation between embedded text and metadata.
+  - What was learned: `page_content` / `text_for_embedding` should carry semantic content for retrieval, while metadata should carry compact fields for filtering, display, traceability, and validation.
+  - Why it matters here: This keeps `index.pkl` smaller and makes retrieved results easier to inspect in the RAG layer.
+
+- Topic: LangChain FAISS persistence.
+  - What was learned: LangChain persists FAISS index vectors separately from docstore metadata; loading the local vectorstore requires explicit pickle deserialization opt-in.
+  - Why it matters here: Step 4 must load only the locally generated project vectorstore and should not deserialize untrusted FAISS pickle files.
+
+- Topic: Non-brittle tests for data pipelines.
+  - What was learned: Tests should validate invariants and consistency relationships instead of hard-coding dynamic API outputs.
+  - Why it matters here: OpenAgenda data changes over time; robust tests should still pass after valid future rebuilds.
+
+### Assumptions
+- User has a valid Mistral API key configured in local `.env` as `MISTRAL_API_KEY`.
+- Local `.env` may also contain:
+  - `MISTRAL_EMBEDDING_MODEL=mistral-embed`
+  - `FAISS_CHUNK_SIZE=1000`
+  - `FAISS_CHUNK_OVERLAP=150`
+- User works from the project root when running scripts.
+- Conda environment remains `local-ai-rag`.
+- `faiss-cpu`, `langchain-community`, `langchain-mistralai`, `langchain-text-splitters`, `python-dotenv`, and `pandas` are installed in the environment.
+- `data/processed/events_clean.csv` remains the source of truth for vectorstore rebuilding.
+- Vectorstore files under `vectorstore/faiss_index/` are generated locally and are safe to load with LangChain pickle deserialization.
+
+### Files Created
+- `scripts/build_faiss_index.py` — builds the FAISS vectorstore from cleaned OpenAgenda events using Mistral embeddings and LangChain.
+- `scripts/search_faiss_index.py` — loads the persisted FAISS vectorstore and runs semantic search smoke tests or custom queries.
+- `tests/test_vectorstore_data.py` — pytest validation suite for vectorstore files, metadata, indexed chunks, and source/vectorstore consistency.
+- `vectorstore/faiss_index/index.faiss` — persisted FAISS vector index generated by LangChain.
+- `vectorstore/faiss_index/index.pkl` — persisted LangChain FAISS docstore and metadata mapping generated locally.
+- `vectorstore/faiss_index/build_metadata.json` — audit metadata for the vectorstore build.
+
+### Files Updated
+- Local `.env` — configured `MISTRAL_API_KEY` and optional vectorstore build settings. This file is not committed.
+- `progress.md` — appended Step 3 completion details and updated global metadata.
+
+### Commands to Run
+```bash
+# Activate the environment
+conda activate local-ai-rag
+
+# Optional dependency refresh if needed
+pip install -U langchain-community langchain-mistralai langchain-text-splitters python-dotenv
+
+# Build the FAISS vectorstore
+python scripts/build_faiss_index.py
+
+# Run default semantic search smoke tests
+python scripts/search_faiss_index.py
+
+# Run custom semantic search examples
+python scripts/search_faiss_index.py "concert jazz à Paris" --top-k 5
+python scripts/search_faiss_index.py "sortie culturelle avec des enfants" --top-k 5
+python scripts/search_faiss_index.py "exposition gratuite ce mois-ci" --top-k 5
+python scripts/search_faiss_index.py "spectacle de théâtre contemporain" --top-k 5
+
+# Validate vectorstore integrity
+pytest tests/test_vectorstore_data.py -v
+```
+
+### Validation
+- Check: Run FAISS build script.
+  - Expected result: `vectorstore/faiss_index/index.faiss`, `index.pkl`, and `build_metadata.json` are created.
+  - Actual result confirmed by user: build completed successfully with 1030 documents and 1898 chunks.
+
+- Check: Inspect generated vectorstore files.
+  - Expected result: generated files exist and are non-empty.
+  - Actual result confirmed by user: vectorstore was saved successfully under `vectorstore/faiss_index/`.
+
+- Check: Run semantic search script.
+  - Expected result: search script loads the local FAISS vectorstore and returns plausible event chunks for default/custom queries.
+  - Actual result confirmed by user: Step 3 work was confirmed all good locally.
+
+- Check: Run vectorstore tests.
+  - Expected result: all tests pass without hard-coded event count, chunk count, lower-bound date, event titles, or FAISS scores.
+  - Actual result confirmed by user: all Step 3 tests passed locally.
+
+### Blockers / Risks
+- `MISTRAL_API_KEY` is now required to rebuild the vectorstore and run semantic search queries.
+- Mistral API rate limits, network issues, or account configuration problems can block vectorstore rebuilds.
+- The saved vectorstore depends on the embedding model used at build time; query embeddings should use the same model.
+- LangChain FAISS loading requires pickle deserialization; only locally generated `index.pkl` should be loaded.
+- Generated vectorstore artifacts can be large; decide later whether to version them, regenerate them during setup, or exclude them from Git.
+- The test suite validates structural consistency but does not judge semantic relevance quality beyond search smoke testing; qualitative/evaluation work belongs to later steps.
+
+### Open Questions
+- Should generated FAISS files be committed to the repository or excluded and rebuilt on demand?
+- Should Step 4 expose retrieval through a CLI, notebook, or simple Python module first?
+- Which Mistral chat model should be used for answer generation in Step 4?
+- What final prompt format should be used to ground recommendations strictly in retrieved event chunks?
+
+### Next Step Notes
+- Next step is Step 4 — Implement the LangChain + Mistral RAG system.
+- Step 4 should load the existing FAISS vectorstore from `vectorstore/faiss_index/`.
+- Step 4 should use the vectorstore as a retriever, not rebuild it unless explicitly requested.
+- Step 4 should integrate a Mistral chat model for grounded answer generation.
+- Step 4 should create a query interface suitable for demo usage.
+- Step 4 should not require conversation memory; the project instructions state conversation history is not necessary for the POC.
+- Step 4 should include guardrails in the prompt so the chatbot answers only from retrieved event context when making event recommendations.
+- Step 5 will later create an annotated Q/A evaluation dataset; do not mix that into Step 4 unless needed for smoke-test examples.
+
+### Resume Context for AI
+- Important technical facts:
+  - Project: Puls-Events RAG POC for OpenClassrooms Data Engineer Project 11.
+  - Step 1 is complete and locally validated.
+  - Step 2 is complete and locally validated.
+  - Step 3 is complete and locally validated.
+  - Conda environment name remains `local-ai-rag`.
+  - FAISS must remain CPU-based unless the user explicitly changes this.
+  - OpenAgenda scope remains Paris.
+  - Processed input dataset for vectorstore: `data/processed/events_clean.csv`.
+  - `text_for_embedding` is the semantic input used for chunking and embedding.
+  - Embedding provider selected for Step 3: Mistral.
+  - Default embedding model: `mistral-embed`.
+  - User confirmed FAISS build output: 1030 events/documents indexed into 1898 chunks.
+  - Vectorstore output path: `vectorstore/faiss_index/`.
+  - Generated vectorstore files: `index.faiss`, `index.pkl`, `build_metadata.json`.
+  - Vectorstore metadata intentionally excludes `description`.
+  - Metadata includes compact retrieval/display/filter fields such as `event_id`, `title`, `city`, `venue_name`, `address`, coordinates, timing fields, `chunk_index`, and `chunk_id`.
+  - `scripts/search_faiss_index.py` exists for semantic search smoke tests.
+  - `tests/test_vectorstore_data.py` exists and uses non-brittle invariant checks.
+  - Mistral API key is now required for vectorstore rebuild and semantic search.
+- Things not to change without confirmation:
+  - Do not rename Conda environment `local-ai-rag`.
+  - Do not switch from `faiss-cpu` to GPU FAISS.
+  - Do not change geographic scope from Paris.
+  - Do not add fallback data sources for OpenAgenda.
+  - Do not move primary one-year filtering from the API call into preprocessing.
+  - Do not re-add `description` to vectorstore metadata unless there is a specific need.
+  - Do not make vectorstore tests depend on fixed counts, dates, titles, or FAISS scores.
+  - Do not implement conversation memory unless the user explicitly asks; the project says it is not necessary for the POC.
+  - Do not add or update intermediate project setup documentation unless the user explicitly asks; the user wants that generated at the end of the project.
+- Later change notes affecting this step:
+  - None.
