@@ -2,14 +2,16 @@
 
 ## Metadata
 - Project: Puls-Events RAG POC — OpenClassrooms Data Engineer Project 11
-- Current step: Step 3 — Build the FAISS vector database
-- Status: Step 3 completed and locally validated by user
-- Last updated: 2026-05-06
+- Current step: Step 4 — Implement the LangChain + Mistral RAG system
+- Status: Step 4 in progress — RAG architecture, core chain, and CLI demo implemented; manual testing confirmed working so far
+- Last updated: 2026-05-07
 - Source files reviewed:
   - `Project11_PlusEvents_Exercice_text.txt`
   - `project11_pulsevents_plan.md`
   - `openclassrooms_project_agent_prompt.md`
   - `progress.md`
+  - `final_step_handoff_plan.md`
+  - `arborescence.md`
 - Related project files:
   - `requirements.txt`
   - `environment.yml`
@@ -18,6 +20,7 @@
   - `scripts/setup_environment.py`
   - `scripts/check_environment.py`
   - `src/pulsevents_rag/__init__.py`
+  - `src/pulsevents_rag/rag_chain.py`
   - `scripts/fetch_openagenda_events.py`
   - `scripts/inspect_openagenda_raw.py`
   - `scripts/preprocess_events.py`
@@ -29,6 +32,7 @@
   - `tests/test_events_data.py`
   - `scripts/build_faiss_index.py`
   - `scripts/search_faiss_index.py`
+  - `scripts/chat_with_events.py`
   - `tests/test_vectorstore_data.py`
   - `vectorstore/faiss_index/index.faiss`
   - `vectorstore/faiss_index/index.pkl`
@@ -783,3 +787,417 @@ pytest tests/test_vectorstore_data.py -v
   - Do not add or update intermediate project setup documentation unless the user explicitly asks; the user wants that generated at the end of the project.
 - Later change notes affecting this step:
   - None.
+
+## Step 4 — Implement the LangChain + Mistral RAG system and evaluation workflow
+- Date added: 2026-05-07
+- Status: In progress — RAG architecture, core chain, and CLI demo implemented; user confirmed it works so far. Annotated QA dataset, RAGAS evaluation, and Step 4 tests remain pending.
+
+### Step Goal
+- Build the functional LangChain + Mistral + FAISS RAG system for the Puls-Events POC.
+- Load the existing FAISS vectorstore from `vectorstore/faiss_index/` without rebuilding it.
+- Retrieve relevant Paris cultural event chunks using the same Mistral embedding model used at vectorstore build time.
+- Generate grounded answers with a Mistral chat model.
+- Provide a CLI/demo interface for manual validation.
+- Later in this same consolidated step, create the annotated QA dataset, run RAGAS evaluation, add RAG behavior tests, add evaluation dataset tests, and validate RAGAS outputs.
+- Keep README, technical report, and PowerPoint out of scope until the user explicitly moves to those deliverables.
+
+### Constraints
+- Use the existing locally generated FAISS vectorstore under `vectorstore/faiss_index/`.
+- Do not rebuild the FAISS vectorstore unless a consistency issue is found.
+- Use Mistral embeddings for query embedding, matching the Step 3 vectorstore build.
+- Use a Mistral chat model for answer generation.
+- Use LangChain to orchestrate retrieval, prompt construction, and chat model invocation.
+- Do not add conversation memory; the POC does not require it.
+- Keep the geographic scope as Paris.
+- Answers must be grounded in retrieved context.
+- If retrieved context is insufficient, the chatbot must say so rather than invent events.
+- Prompt must prevent hallucinated event titles, dates, venues, addresses, prices, conditions, registration links, or accessibility details.
+- The user explicitly decided that annotated QA dataset creation and RAGAS evaluation are part of this Step 4, but must be done last after the RAG chain and CLI demo are manually tested and confirmed to work.
+- Scripts should be provided as full file contents in the chat for the user to copy into the named paths, not as downloadable generated script files.
+- The progress file update must include the project arborescence with all changes made.
+
+### Work Completed
+- Defined the final RAG architecture before implementation.
+- Confirmed Step 4 is now treated as the consolidated final implementation/evaluation step, covering:
+  - RAG chain
+  - CLI demo interface
+  - annotated QA dataset
+  - RAGAS evaluation
+  - RAG behavior tests
+  - evaluation dataset tests
+  - optional RAGAS output tests
+  - demo checklist
+  - final validation sequence
+- Confirmed that README, technical report, and PowerPoint are still out of scope for this step.
+- Created RAG core module:
+  - `src/pulsevents_rag/rag_chain.py`
+- Implemented public function:
+  - `answer_question(question: str, top_k: int | None = None) -> dict[str, Any]`
+- Implemented supporting public/helper functions in `rag_chain.py`:
+  - `load_config()`
+  - `validate_environment(config)`
+  - `get_embeddings(config)`
+  - `get_chat_model(config)`
+  - `load_vectorstore()`
+  - `retrieve_relevant_documents(question, top_k)`
+  - `format_sources(retrieved_documents)`
+  - `format_context(retrieved_documents)`
+  - `build_prompt()`
+- Implemented `RagConfig` dataclass for centralized RAG configuration.
+- Implemented environment loading from `.env` through `python-dotenv`.
+- Implemented validation for:
+  - `MISTRAL_API_KEY`
+  - `RAG_TOP_K`
+  - `top_k`
+  - non-empty question input
+  - required local FAISS files: `index.faiss` and `index.pkl`
+- Implemented FAISS loading through LangChain with:
+  - `FAISS.load_local(...)`
+  - `allow_dangerous_deserialization=True`
+  - Mistral embeddings instantiated as `MistralAIEmbeddings(model=config.embedding_model)`
+- Implemented retrieval using:
+  - `vectorstore.similarity_search_with_score(query=..., k=...)`
+- Implemented source metadata formatting for demo/evaluation traces, including when available:
+  - rank
+  - FAISS score/distance
+  - event ID
+  - title
+  - venue name
+  - address
+  - city
+  - first timing
+  - last timing
+  - date range
+  - conditions
+  - registration URL
+  - latitude
+  - longitude
+  - origin agenda
+  - chunk ID
+  - chunk index
+  - chunk text length
+  - chunk preview
+- Implemented defensive metadata handling so missing optional metadata does not crash the RAG chain.
+- Implemented strict grounding prompt in French by default.
+- Prompt rules require the model to:
+  - answer only from retrieved context
+  - not invent event facts
+  - state insufficient context when needed
+  - cite concrete titles, dates, venues, addresses/cities, conditions, or registration details when available
+  - avoid claiming an event exists unless it appears in retrieved context
+  - avoid unnecessary duplicate recommendations when multiple chunks refer to the same event
+- Implemented CLI demo script:
+  - `scripts/chat_with_events.py`
+- CLI supports:
+  - single-question mode
+  - `--top-k`
+  - `--interactive`
+  - `--hide-sources`
+  - `--preview-chars`
+- CLI prints:
+  - user question
+  - generated answer
+  - retrieved sources
+  - compact runtime metadata
+- CLI source display includes:
+  - title
+  - venue name
+  - dates
+  - address
+  - city
+  - FAISS score
+  - event ID
+  - chunk ID
+  - conditions when present
+  - registration link when present
+  - chunk preview
+- CLI inserts `src/` into `sys.path` so it can be run directly as:
+  - `python scripts/chat_with_events.py "..."`
+- User confirmed after copying the files and running manual checks that the RAG chain and CLI work so far.
+
+### Key Decisions
+- Decision: Use `src/pulsevents_rag/rag_chain.py` as the reusable RAG engine module.
+  - Reason: Keeps retrieval/generation logic inside the package and separate from CLI formatting.
+  - Impact: Future scripts, tests, RAGAS evaluation, and demo tools should import from this module instead of duplicating RAG logic.
+
+- Decision: Expose `answer_question(question: str, top_k: int | None = None) -> dict[str, Any]` as the main public function.
+  - Reason: The final handoff requested `answer_question(question: str, top_k: int = 5) -> dict`; allowing `None` lets the function use `RAG_TOP_K` from `.env` while preserving the intended call pattern.
+  - Impact: RAGAS and tests should call `answer_question(...)` directly and should not invoke CLI subprocesses unless testing CLI behavior specifically.
+
+- Decision: Use `retrieve_relevant_documents(...)` as a reusable retrieval helper.
+  - Reason: It is useful for manual inspection, RAG behavior tests, and for building the annotated QA dataset from real retrieved events.
+  - Impact: The next implementation stage can use this function to inspect candidate retrieved contexts before writing `data/evaluation/annotated_qa_dataset.jsonl`.
+
+- Decision: Keep FAISS vectorstore loading cached with `@lru_cache(maxsize=1)`.
+  - Reason: Avoids reloading the vectorstore from disk for every question during CLI sessions and RAGAS evaluation.
+  - Impact: If the FAISS index is rebuilt during the same Python process, the process should be restarted or the cache should be cleared/changed.
+
+- Decision: Use `allow_dangerous_deserialization=True` when loading FAISS.
+  - Reason: LangChain stores FAISS docstore metadata in `index.pkl`; loading the local generated vectorstore requires pickle deserialization.
+  - Impact: This flag must only be used for this project's own locally generated vectorstore, never for untrusted FAISS files.
+
+- Decision: Let `langchain_mistralai` read `MISTRAL_API_KEY` from the environment.
+  - Reason: This matches the Step 3 adjustment that avoided passing a plain string API key into `MistralAIEmbeddings`.
+  - Impact: `validate_environment(...)` still explicitly checks that `MISTRAL_API_KEY` exists before model/vectorstore operations.
+
+- Decision: Keep generated answer language French by default.
+  - Reason: The project dataset and demo context are French, and the handoff requires French by default unless the user asks otherwise.
+  - Impact: Manual demo questions and annotated QA expected answers should preferably be in French.
+
+- Decision: Do QA dataset and RAGAS evaluation at the end of Step 4, not before manual RAG validation.
+  - Reason: User explicitly requested RAGAS/QA to be part of this 4th step but as the last thing after confirming the RAG behavior works manually.
+  - Impact: Next work should continue with manual validation/behavior tests before creating the annotated QA dataset and RAGAS scripts.
+
+- Decision: Provide scripts as full file contents in chat rather than generating script downloads.
+  - Reason: User explicitly requested full file contents in the conversation for scripts.
+  - Impact: Continue giving complete script contents for future files such as `scripts/evaluate_ragas.py`, `tests/test_rag_pipeline.py`, and dataset tests.
+
+### User Questions / Confusions / Problems
+- Question / confusion: User asked to start with the first substep only after providing the current project folder/files.
+  - Resolution / explanation: The current arborescence and progress file were used as the source of truth before Step 4 implementation guidance.
+  - Impact on project: The implementation was aligned with the existing project structure and did not assume extra files.
+
+- Question / confusion: User emphasized that no assumptions should be made about the current implementation if details are unavailable in instructions or progress.
+  - Resolution / explanation: The RAG code was written defensively around optional metadata fields and stayed within the documented FAISS/vectorstore contract.
+  - Impact on project: Future work should ask for current files or command outputs when exact implementation details matter.
+
+- Question / confusion: User clarified that annotated QA and RAGAS should be part of this 4th step, but only after the RAG system has been manually tested and works well.
+  - Resolution / explanation: Step 4 execution order was updated accordingly.
+  - Impact on project: Do not start `data/evaluation/annotated_qa_dataset.jsonl` or `scripts/evaluate_ragas.py` until the RAG CLI/manual behavior is considered stable.
+
+- Question / confusion: User requested that future progress updates include the arborescence with all changes made.
+  - Resolution / explanation: This progress update includes a current arborescence section with new Step 4 files.
+  - Impact on project: Keep including arborescence snapshots in later progress updates when files change.
+
+### Learning Notes Discussed
+- Topic: Separating package RAG logic from CLI demo formatting.
+  - What was learned: `rag_chain.py` should contain reusable retrieval/generation logic, while `chat_with_events.py` should only handle command-line UX and display formatting.
+  - Why it matters here: RAGAS evaluation and tests can reuse the same RAG engine without depending on terminal output.
+
+- Topic: Grounding prompt design for event recommendations.
+  - What was learned: The prompt must explicitly forbid invented titles, dates, venues, prices, conditions, addresses, and registration details.
+  - Why it matters here: The evaluation and demo depend on trustworthiness; hallucinated events would weaken the POC.
+
+- Topic: RAGAS should evaluate the final manual-validated behavior.
+  - What was learned: Creating QA/RAGAS before validating retrieval and generation would risk evaluating a moving target.
+  - Why it matters here: The annotated dataset should be based on real retrieved events and stable enough outputs/contexts.
+
+### Assumptions
+- User copied `src/pulsevents_rag/rag_chain.py` exactly or substantially as provided in the chat.
+- User copied `scripts/chat_with_events.py` exactly or substantially as provided in the chat.
+- User ran enough manual checks to confirm that the RAG chain and CLI work so far.
+- Local `.env` contains a valid `MISTRAL_API_KEY`.
+- Local `.env` may contain:
+  - `MISTRAL_EMBEDDING_MODEL=mistral-embed`
+  - `MISTRAL_CHAT_MODEL=mistral-small-latest`
+  - `RAG_TOP_K=5`
+  - optional `FAISS_INDEX_PATH`, if the user overrides the default vectorstore path
+- `vectorstore/faiss_index/index.faiss` and `vectorstore/faiss_index/index.pkl` exist and are locally generated.
+- The FAISS vectorstore still corresponds to the current `data/processed/events_clean.csv`.
+- Conda environment remains `local-ai-rag`.
+- The next AI should not assume the exact final local code if the user edited it after copying; ask for file contents if debugging exact behavior.
+
+### Files Created
+- `src/pulsevents_rag/rag_chain.py` — reusable RAG engine that loads FAISS, retrieves chunks, builds grounded prompt context, calls Mistral chat model, and returns answer/context/source metadata.
+- `scripts/chat_with_events.py` — CLI demo interface for single-question and interactive RAG usage.
+
+### Files Updated
+- `progress.md` — appended Step 4 partial progress and updated global metadata; includes current arborescence with Step 4 file changes.
+
+### Commands to Run
+```bash
+# Activate the environment
+conda activate local-ai-rag
+
+# Check RAG module import
+python -c "from pulsevents_rag.rag_chain import answer_question, load_vectorstore; print('RAG module import OK')"
+
+# Check vectorstore loading through the RAG module
+python -c "from pulsevents_rag.rag_chain import load_vectorstore; vs = load_vectorstore(); print('Vectorstore loaded:', vs.index.ntotal)"
+
+# Retrieval-only check
+python -c "from pulsevents_rag.rag_chain import retrieve_relevant_documents; docs = retrieve_relevant_documents('Je cherche une exposition à Paris', top_k=3); print(len(docs)); print(docs[0][0].metadata); print(docs[0][0].page_content[:300])"
+
+# Full RAG answer check
+python -c "from pulsevents_rag.rag_chain import answer_question; result = answer_question('Je cherche une exposition à Paris', top_k=3); print(result['answer']); print('sources:', len(result['sources']))"
+
+# CLI help check
+python scripts/chat_with_events.py --help
+
+# Single-question CLI checks
+python scripts/chat_with_events.py "Je cherche un concert de jazz à Paris" --top-k 5
+python scripts/chat_with_events.py "Propose-moi une sortie culturelle pour enfants" --top-k 5
+python scripts/chat_with_events.py "Je veux visiter une exposition gratuite" --top-k 5
+python scripts/chat_with_events.py "Y a-t-il du théâtre contemporain à Paris ?" --top-k 5
+python scripts/chat_with_events.py "Propose-moi trois sorties culturelles à Paris avec les lieux et les dates" --top-k 5
+
+# Interactive CLI mode
+python scripts/chat_with_events.py --interactive
+```
+
+### Validation
+- Check: Import `pulsevents_rag.rag_chain`.
+  - Expected result: module imports successfully.
+  - Actual result: user confirmed the work so far works.
+
+- Check: Load FAISS vectorstore through `load_vectorstore()`.
+  - Expected result: local FAISS vectorstore loads from `vectorstore/faiss_index/` and reports a non-zero vector count.
+  - Actual result: user confirmed the work so far works.
+
+- Check: Run retrieval-only query.
+  - Expected result: returns up to `top_k` LangChain documents with metadata and non-empty `page_content`.
+  - Actual result: user confirmed the work so far works.
+
+- Check: Run `answer_question(...)`.
+  - Expected result: returns a dictionary with non-empty `answer`, `contexts`, `sources`, `model`, `embedding_model`, and `top_k`.
+  - Actual result: user confirmed the work so far works.
+
+- Check: Run `scripts/chat_with_events.py` single-question mode.
+  - Expected result: terminal prints question, answer, sources, and runtime metadata.
+  - Actual result: user confirmed the work so far works.
+
+- Check: Run `scripts/chat_with_events.py --interactive`.
+  - Expected result: user can ask repeated questions and exit with `quit`, `exit`, `q`, or `stop`.
+  - Actual result: user confirmed the work so far works.
+
+### Blockers / Risks
+- `MISTRAL_API_KEY` is required for retrieval and answer generation.
+- Mistral API rate limits, quota, network issues, or model availability can block manual demo and RAGAS evaluation.
+- `load_vectorstore()` is cached; if the vectorstore is rebuilt during the same Python process, restart the process or clear/modify the cache.
+- FAISS scores are not stable enough for brittle assertions; tests should only validate numeric presence/type where needed, not exact values.
+- Prompt grounding reduces hallucination risk but does not mathematically guarantee no hallucinations; manual review and RAGAS faithfulness evaluation remain needed.
+- The next steps will likely require the `ragas` package and possibly compatible `datasets`/LangChain wrappers; dependencies may need to be added to `requirements.txt` and `environment.yml` later, but this has not been done yet.
+- The annotated QA dataset must be based on actual current retrieved events, not invented event titles or expected answers.
+- The current progress file records that Step 4 is in progress, not complete.
+
+### Open Questions
+- Which exact Mistral chat model should be kept for final evaluation if `mistral-small-latest` gives weak outputs or RAGAS instability?
+- Should RAGAS evaluation use Mistral as both generator and evaluator, or use another supported evaluator configuration if RAGAS compatibility requires it?
+- Should the annotated QA dataset contain closer to 12, 15, or 20 rows for the POC?
+- Should generated FAISS files be committed or excluded from Git in the final repository packaging? This remains unresolved from Step 3.
+- Should the CLI output format be considered final, or should it be simplified before the live demo?
+
+### Next Step Notes
+- Continue Step 4 only; do not move to README, report, or PowerPoint yet.
+- Before RAGAS, complete enough manual RAG behavior validation to be confident that retrieval and generation are stable.
+- Recommended next implementation order:
+  1. Add `tests/test_rag_pipeline.py` for import, vectorstore loading, retrieval behavior, output structure, and negative-query behavior without brittle exact LLM wording.
+  2. Use `retrieve_relevant_documents(...)` or `scripts/search_faiss_index.py` to inspect candidate real events for QA dataset creation.
+  3. Create `data/evaluation/annotated_qa_dataset.jsonl` using only actual events from the current dataset/vectorstore.
+  4. Add `tests/test_evaluation_dataset.py` validating dataset structure, allowed question types, unique IDs, non-empty expected answers, and event IDs existing in `data/processed/events_clean.csv`.
+  5. Implement `scripts/evaluate_ragas.py` to call `answer_question(...)`, build a RAGAS-compatible dataset, run focused metrics, and write reports.
+  6. Generate `reports/ragas_evaluation_results.csv` and `reports/ragas_evaluation_summary.json`.
+  7. Optionally add `tests/test_ragas_outputs.py` for structural validation after RAGAS is run.
+  8. Add `reports/demo_checklist.md` near the end of Step 4.
+- For RAGAS, use focused metrics from the handoff:
+  - faithfulness
+  - answer relevancy
+  - context precision
+  - context recall
+- RAGAS output targets remain:
+  - `reports/ragas_evaluation_results.csv`
+  - `reports/ragas_evaluation_summary.json`
+- Do not update `progress.md` again until the user asks.
+
+### Current Arborescence After Step 4 Partial Changes
+```text
+pulsevents/
+├── .env
+├── .env.example
+├── .gitignore
+├── environment.yml
+├── requirements.txt
+├── progress.md
+│
+├── .pytest_cache/
+│   ├── .gitignore
+│   ├── CACHEDIR.TAG
+│   ├── README.md
+│   └── v/
+│       └── cache/
+│           ├── lastfailed
+│           ├── nodeids
+│           └── stepwise
+│
+├── data/
+│   ├── raw/
+│   │   ├── .gitkeep
+│   │   └── openagenda_events_raw.json
+│   └── processed/
+│       ├── .gitkeep
+│       ├── events_clean.csv
+│       └── events_rejected.json
+│
+├── docs/
+│   └── events_clean_schema.md
+│
+├── notebooks/
+│
+├── reports/
+│   └── openagenda_raw_schema_summary.json
+│
+├── scripts/
+│   ├── build_faiss_index.py
+│   ├── chat_with_events.py
+│   ├── check_environment.py
+│   ├── fetch_openagenda_events.py
+│   ├── inspect_openagenda_raw.py
+│   ├── preprocess_events.py
+│   ├── search_faiss_index.py
+│   └── setup_environment.py
+│
+├── src/
+│   └── pulsevents_rag/
+│       ├── __init__.py
+│       └── rag_chain.py
+│
+├── tests/
+│   ├── test_events_data.py
+│   └── test_vectorstore_data.py
+│
+└── vectorstore/
+    ├── .gitkeep
+    └── faiss_index/
+        ├── build_metadata.json
+        ├── index.faiss
+        └── index.pkl
+```
+
+### Resume Context for AI
+- Important technical facts:
+  - Project: Puls-Events RAG POC for OpenClassrooms Data Engineer Project 11.
+  - Steps 1–3 are complete and locally validated.
+  - Step 4 is in progress.
+  - Step 4 now includes both RAG implementation and later QA/RAGAS evaluation work.
+  - User confirmed the RAG chain and CLI demo work so far.
+  - Main RAG module: `src/pulsevents_rag/rag_chain.py`.
+  - Main public function: `answer_question(question: str, top_k: int | None = None) -> dict[str, Any]`.
+  - Retrieval helper available: `retrieve_relevant_documents(question, top_k)`.
+  - CLI demo script: `scripts/chat_with_events.py`.
+  - CLI supports single-question and interactive modes.
+  - Existing vectorstore path: `vectorstore/faiss_index/`.
+  - Default embedding model: `mistral-embed` via `MISTRAL_EMBEDDING_MODEL`.
+  - Default chat model: `mistral-small-latest` via `MISTRAL_CHAT_MODEL`.
+  - Default top-k: `5` via `RAG_TOP_K` if configured.
+  - `MISTRAL_API_KEY` is required for retrieval/generation.
+  - FAISS loading uses `allow_dangerous_deserialization=True` only because the vectorstore pickle is locally generated.
+  - RAG prompt is strict and French by default.
+  - Source metadata is returned for traceability and later evaluation.
+  - Annotated QA dataset and RAGAS evaluation have not been implemented yet.
+  - RAGAS must be the last part of Step 4 after manual validation.
+
+- Things not to change without confirmation:
+  - Do not rename Conda environment `local-ai-rag`.
+  - Do not switch from `faiss-cpu` to GPU FAISS.
+  - Do not change geographic scope from Paris.
+  - Do not rebuild the vectorstore unless there is a consistency issue.
+  - Do not add conversation memory.
+  - Do not invent QA expected answers; annotated answers must be based on actual retrieved/current dataset events.
+  - Do not work on README, technical report, or PowerPoint during this Step 4 partial implementation.
+  - Do not update `progress.md` unless the user explicitly asks.
+  - Do not assume exact current local implementation if debugging; ask the user for file contents or command outputs.
+  - Continue providing full file contents in chat for scripts/tests unless the user asks otherwise.
+
+- Later change notes affecting this step:
+  - None yet.
+
