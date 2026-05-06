@@ -65,7 +65,7 @@ def load_rows() -> list[dict[str, Any]]:
         return list(csv.DictReader(file))
 
 
-def parse_iso_datetime(value: str) -> datetime:
+def parse_iso_datetime(value: Any) -> datetime:
     assert value and value.strip(), "Datetime value is empty"
 
     try:
