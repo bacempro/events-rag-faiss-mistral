@@ -61,6 +61,13 @@ DEFAULT_ANSWERS_JSONL_PATH = PROJECT_ROOT / "reports" / "ragas_answer_traces.jso
 
 DEFAULT_TOP_K = 5
 
+REQUESTED_RAGAS_METRIC_NAMES = [
+    "faithfulness",
+    "answer_relevancy",
+    "context_precision",
+    "context_recall",
+]
+
 REQUIRED_QA_FIELDS = {
     "id",
     "question",
