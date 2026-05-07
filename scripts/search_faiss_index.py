@@ -157,6 +157,7 @@ def search_query(vectorstore: FAISS, query: str, top_k: int) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the vectorstore search script."""
     parser = argparse.ArgumentParser(
         description="Search the Puls-Events FAISS vectorstore."
     )
@@ -178,6 +179,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    """Load the FAISS vectorstore and run one or more semantic search queries."""
     args = parse_args()
 
     if args.top_k <= 0:

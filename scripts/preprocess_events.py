@@ -1,3 +1,17 @@
+"""Normalize raw OpenAgenda events into a clean tabular dataset.
+
+Input:
+    data/raw/openagenda_events_raw.json
+
+Output:
+    data/processed/events_clean.csv
+    data/processed/events_rejected.json
+
+Usage:
+    conda activate local-ai-rag
+    python scripts/preprocess_events.py
+"""
+
 from __future__ import annotations
 
 import csv
@@ -67,6 +81,7 @@ class PreprocessingError(RuntimeError):
 
 
 def load_raw_events(path: Path) -> list[dict[str, Any]]:
+    """Load the raw OpenAgenda events list from a JSON extraction file."""
     if not path.exists():
         raise PreprocessingError(f"Raw OpenAgenda file not found: {path}")
 
@@ -82,6 +97,7 @@ def load_raw_events(path: Path) -> list[dict[str, Any]]:
 
 
 def normalize_whitespace(value: Any) -> str:
+    """Strip HTML tags, collapse whitespace, and return a clean string."""
     if value is None:
         return ""
 
@@ -120,6 +136,7 @@ def get_localized_text(value: Any, preferred_language: str = "fr") -> str:
 
 
 def get_nested_value(data: dict[str, Any], *keys: str) -> Any:
+    """Traverse a nested dict by an arbitrary key path, returning None on any miss."""
     current: Any = data
 
     for key in keys:
@@ -132,6 +149,7 @@ def get_nested_value(data: dict[str, Any], *keys: str) -> Any:
 
 
 def parse_float(value: Any) -> float | None:
+    """Parse a value as float, returning None if conversion is not possible."""
     if value is None or value == "":
         return None
 
@@ -142,6 +160,7 @@ def parse_float(value: Any) -> float | None:
 
 
 def extract_timing_value(event: dict[str, Any], timing_key: str, value_key: str) -> str:
+    """Extract and normalize a single value from a named timing dict on an event."""
     timing = event.get(timing_key)
 
     if not isinstance(timing, dict):
@@ -165,6 +184,7 @@ def extract_registration(event: dict[str, Any]) -> tuple[str, str]:
     url = ""
 
     def inspect_value(value: Any) -> None:
+        """Recursively scan a registration value and populate the enclosing email/url variables."""
         nonlocal email, url
 
         if value is None:
@@ -214,6 +234,11 @@ def extract_registration(event: dict[str, Any]) -> tuple[str, str]:
 
 
 def build_text_for_embedding(row: dict[str, Any]) -> str:
+    """Build the concatenated French text used as input for vectorization.
+
+    Combines title, description, long description, dates, conditions, and location
+    into a single normalized string ready for Mistral embeddings.
+    """
     parts = []
 
     field_templates = [
@@ -245,6 +270,12 @@ def build_text_for_embedding(row: dict[str, Any]) -> str:
 
 
 def transform_event(event: dict[str, Any]) -> tuple[dict[str, Any] | None, list[str]]:
+    """Map one raw OpenAgenda event dict to a clean row dict.
+
+    Returns a tuple of (clean_row, rejection_reasons). If rejection_reasons is
+    non-empty, clean_row is None and the event should be written to the
+    rejected-events log.
+    """
     rejection_reasons: list[str] = []
 
     location = event.get("location")
@@ -318,6 +349,7 @@ def transform_event(event: dict[str, Any]) -> tuple[dict[str, Any] | None, list[
 
 
 def is_valid_iso_datetime(value: Any) -> bool:
+    """Return True if value is a non-empty string parseable as an ISO 8601 datetime."""
     if not isinstance(value, str) or not value.strip():
         return False
 
@@ -329,6 +361,7 @@ def is_valid_iso_datetime(value: Any) -> bool:
 
 
 def write_clean_csv(rows: list[dict[str, Any]], output_path: Path) -> None:
+    """Write clean event rows to a CSV file with the defined column schema."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", encoding="utf-8", newline="") as file:
@@ -343,6 +376,7 @@ def write_rejected_events(
     rejected_events: list[dict[str, Any]],
     output_path: Path,
 ) -> None:
+    """Write the rejected-events audit list to a JSON file."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", encoding="utf-8") as file:
@@ -350,6 +384,7 @@ def write_rejected_events(
 
 
 def preprocess_events(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Process all raw events and split them into clean rows and rejected records."""
     clean_rows: list[dict[str, Any]] = []
     rejected_events: list[dict[str, Any]] = []
 
@@ -378,6 +413,7 @@ def print_summary(
     rejected_count: int,
     rejected_events: list[dict[str, Any]],
 ) -> None:
+    """Print a preprocessing result summary and rejection-reason breakdown to stdout."""
     print("OpenAgenda preprocessing completed")
     print("=" * 40)
     print(f"Raw events: {raw_count}")
@@ -402,6 +438,7 @@ def print_summary(
 
 
 def main() -> int:
+    """Load raw events, preprocess them, write outputs, and print a summary."""
     try:
         events = load_raw_events(RAW_INPUT_PATH)
         clean_rows, rejected_events = preprocess_events(events)

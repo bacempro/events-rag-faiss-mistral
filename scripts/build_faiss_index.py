@@ -282,6 +282,11 @@ def write_build_metadata(
 
 
 def main() -> None:
+    """Run the full FAISS vectorstore build pipeline.
+
+    Loads cleaned events, chunks them, generates Mistral embeddings, persists
+    the FAISS index under vectorstore/faiss_index/, and writes build metadata.
+    """
     print("Building Puls-Events FAISS vectorstore")
     print(f"Input dataset: {INPUT_CSV}")
 

@@ -33,6 +33,7 @@ DEFAULT_PYTHON = "3.11"
 
 
 def run_command(command: list[str], *, cwd: Path = PROJECT_ROOT) -> None:
+    """Run a shell command and raise RuntimeError if it exits with a non-zero code."""
     print(f"\n$ {' '.join(command)}")
     completed = subprocess.run(command, cwd=cwd, text=True)
     if completed.returncode != 0:
@@ -40,6 +41,7 @@ def run_command(command: list[str], *, cwd: Path = PROJECT_ROOT) -> None:
 
 
 def capture_command(command: list[str], *, cwd: Path = PROJECT_ROOT) -> str:
+    """Run a shell command, capture stdout, and raise RuntimeError on failure."""
     completed = subprocess.run(command, cwd=cwd, text=True, capture_output=True)
     if completed.returncode != 0:
         raise RuntimeError(
@@ -50,6 +52,7 @@ def capture_command(command: list[str], *, cwd: Path = PROJECT_ROOT) -> str:
 
 
 def ensure_conda_available() -> str:
+    """Check that conda is on PATH and return its executable path."""
     conda_executable = shutil.which("conda")
     if conda_executable is None:
         raise RuntimeError(
@@ -60,6 +63,7 @@ def ensure_conda_available() -> str:
 
 
 def conda_env_exists(env_name: str) -> bool:
+    """Return True if a Conda environment with the given name already exists."""
     output = capture_command(["conda", "env", "list"])
     for line in output.splitlines():
         if not line.strip() or line.startswith("#"):
@@ -71,6 +75,7 @@ def conda_env_exists(env_name: str) -> bool:
 
 
 def create_env(env_name: str, python_version: str, force_recreate: bool) -> None:
+    """Create the Conda environment, optionally removing an existing one first."""
     if conda_env_exists(env_name):
         if not force_recreate:
             print(f"\n[OK] Conda environment already exists: {env_name}")
@@ -89,6 +94,7 @@ def create_env(env_name: str, python_version: str, force_recreate: bool) -> None
 
 
 def install_requirements(env_name: str) -> None:
+    """Upgrade pip and install requirements.txt into the target Conda environment."""
     requirements = PROJECT_ROOT / "requirements.txt"
     if not requirements.exists():
         raise FileNotFoundError(f"Missing dependency file: {requirements}")
@@ -123,6 +129,7 @@ def install_requirements(env_name: str) -> None:
 
 
 def register_kernel(env_name: str) -> None:
+    """Register a Jupyter kernel for the Conda environment."""
     run_command([
         "conda",
         "run",
@@ -141,6 +148,7 @@ def register_kernel(env_name: str) -> None:
 
 
 def run_validation(env_name: str) -> None:
+    """Run scripts/check_environment.py inside the Conda environment."""
     run_command([
         "conda",
         "run",
@@ -152,6 +160,7 @@ def run_validation(env_name: str) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the setup script."""
     parser = argparse.ArgumentParser(
         description="Create and validate a reusable Conda environment for local AI/RAG work."
     )
@@ -179,6 +188,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Create the Conda environment, install dependencies, and validate the setup."""
     args = parse_args()
 
     try:

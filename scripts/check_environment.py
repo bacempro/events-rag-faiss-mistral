@@ -30,6 +30,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 @dataclass(frozen=True)
 class PackageCheck:
+    """Descriptor for a single package import check."""
+
     pip_name: str
     import_name: str
     required: bool = True
@@ -55,10 +57,12 @@ PACKAGE_CHECKS = [
 
 
 def print_header(title: str) -> None:
+    """Print a section header to stdout."""
     print(f"\n{'=' * 80}\n{title}\n{'=' * 80}")
 
 
 def check_python_version() -> bool:
+    """Check that the active Python version meets the minimum requirement."""
     print_header("Python")
     current = sys.version_info[:3]
     print(f"Executable : {sys.executable}")
@@ -74,6 +78,7 @@ def check_python_version() -> bool:
 
 
 def check_imports() -> bool:
+    """Try importing each required package and report success or failure."""
     print_header("Package imports")
     ok = True
 
@@ -94,6 +99,7 @@ def check_imports() -> bool:
 
 
 def check_faiss_cpu() -> bool:
+    """Run a minimal FAISS CPU index-creation and search smoke test."""
     print_header("FAISS CPU smoke test")
     try:
         import faiss
@@ -131,6 +137,7 @@ def check_faiss_cpu() -> bool:
 
 
 def check_env_file() -> bool:
+    """Load .env if present and verify that MISTRAL_API_KEY is configured."""
     print_header("Environment variables")
     env_file = PROJECT_ROOT / ".env"
     env_example = PROJECT_ROOT / ".env.example"
@@ -158,7 +165,9 @@ def check_env_file() -> bool:
         return False
 
 
+
 def main() -> int:
+    """Run all environment checks and return a non-zero exit code on failure."""
     checks = [
         check_python_version(),
         check_imports(),

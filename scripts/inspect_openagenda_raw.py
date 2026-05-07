@@ -1,3 +1,16 @@
+"""Inspect the raw OpenAgenda extraction and report schema field completeness.
+
+Input:
+    data/raw/openagenda_events_raw.json
+
+Output:
+    reports/openagenda_raw_schema_summary.json
+
+Usage:
+    conda activate local-ai-rag
+    python scripts/inspect_openagenda_raw.py
+"""
+
 from __future__ import annotations
 
 import json
@@ -28,6 +41,7 @@ IMPORTANT_FIELDS = [
 
 
 def load_raw_events(path: Path) -> list[dict[str, Any]]:
+    """Load the raw OpenAgenda events list from a JSON extraction file."""
     if not path.exists():
         raise FileNotFoundError(f"Raw OpenAgenda file not found: {path}")
 
@@ -43,6 +57,7 @@ def load_raw_events(path: Path) -> list[dict[str, Any]]:
 
 
 def is_missing(value: Any) -> bool:
+    """Return True when a field value is considered absent or empty."""
     if value is None:
         return True
 
@@ -59,6 +74,7 @@ def is_missing(value: Any) -> bool:
 
 
 def get_nested_keys(value: Any) -> list[str]:
+    """Return sorted top-level keys if value is a dict, otherwise an empty list."""
     if isinstance(value, dict):
         return sorted(value.keys())
 
@@ -66,6 +82,7 @@ def get_nested_keys(value: Any) -> list[str]:
 
 
 def get_language_keys(value: Any) -> list[str]:
+    """Return sorted language-code keys that are present and non-empty in a multilingual dict."""
     if not isinstance(value, dict):
         return []
 
@@ -76,6 +93,7 @@ def get_language_keys(value: Any) -> list[str]:
 
 
 def profile_events(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute field-completeness statistics and example rows for a list of raw events."""
     top_level_key_counts: Counter[str] = Counter()
     location_key_counts: Counter[str] = Counter()
     title_language_counts: Counter[str] = Counter()
@@ -151,6 +169,7 @@ def profile_events(events: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def print_summary(report: dict[str, Any]) -> None:
+    """Print a human-readable schema and field-completeness summary to stdout."""
     print("OpenAgenda raw schema inspection")
     print("=" * 40)
     print(f"Total events: {report['total_events']}")
@@ -182,6 +201,7 @@ def print_summary(report: dict[str, Any]) -> None:
 
 
 def write_report(report: dict[str, Any], output_path: Path) -> None:
+    """Write the schema report as a formatted JSON file."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", encoding="utf-8") as file:
@@ -189,6 +209,7 @@ def write_report(report: dict[str, Any], output_path: Path) -> None:
 
 
 def main() -> int:
+    """Load raw events, profile the schema, print a summary, and save the report."""
     events = load_raw_events(RAW_INPUT_PATH)
     report = profile_events(events)
 

@@ -1,3 +1,17 @@
+"""Fetch raw Paris cultural events from the OpenAgenda API.
+
+Applies the main filters at request time:
+    - city: configured via OPENAGENDA_CITY (default: Paris)
+    - timings[gte]: today - 365 days (future events included)
+
+Output:
+    data/raw/openagenda_events_raw.json
+
+Usage:
+    conda activate local-ai-rag
+    python scripts/fetch_openagenda_events.py
+"""
+
 from __future__ import annotations
 
 import json
@@ -31,6 +45,7 @@ def load_environment() -> None:
 
 
 def require_env(name: str) -> str:
+    """Return the value of a required environment variable, raising if absent or empty."""
     value = os.getenv(name)
     if not value:
         raise OpenAgendaFetchError(
@@ -41,6 +56,7 @@ def require_env(name: str) -> str:
 
 
 def get_headers(api_key: str) -> dict[str, str]:
+    """Build HTTP request headers for the OpenAgenda API."""
     return {
         "key": api_key,
         "Accept": "application/json",
@@ -55,6 +71,10 @@ def request_json(
     params: dict[str, Any],
     timeout: int = 30,
 ) -> dict[str, Any]:
+    """Execute a GET request and return the parsed JSON body.
+
+    Raises OpenAgendaFetchError on HTTP errors or non-JSON/unexpected responses.
+    """
     response = requests.get(url, headers=headers, params=params, timeout=timeout)
 
     if response.status_code >= 400:
@@ -238,6 +258,7 @@ def fetch_events(
 
 
 def write_json(payload: dict[str, Any], output_path: Path) -> None:
+    """Serialize payload to a JSON file, creating parent directories as needed."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", encoding="utf-8") as file:
@@ -245,6 +266,7 @@ def write_json(payload: dict[str, Any], output_path: Path) -> None:
 
 
 def main() -> int:
+    """Fetch Paris cultural events from OpenAgenda and write the raw JSON payload."""
     load_environment()
 
     try:
