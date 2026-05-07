@@ -201,6 +201,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    parser.add_argument(
+        "--debug-ragas-embeddings",
+        action="store_true",
+        help=(
+            "Print diagnostic information about the embedding output used by RAGAS, "
+            "then exit."
+        ),
+    )
+
     return parser
 
 
@@ -641,59 +650,72 @@ def import_ragas_metrics() -> list[Any]:
             "Could not import ragas.metrics. Check your RAGAS installation."
         ) from exc
 
-    metric_specs = [
-        {
-            "label": "faithfulness",
-            "object_names": ["faithfulness"],
-            "class_names": ["Faithfulness"],
-        },
-        {
-            "label": "answer_relevancy",
-            "object_names": ["answer_relevancy", "answer_relevance"],
-            "class_names": ["AnswerRelevancy", "ResponseRelevancy"],
-        },
-        {
-            "label": "context_precision",
-            "object_names": ["context_precision"],
-            "class_names": [
-                "ContextPrecision",
-                "LLMContextPrecisionWithReference",
-                "LLMContextPrecisionWithoutReference",
-            ],
-        },
-        {
-            "label": "context_recall",
-            "object_names": ["context_recall"],
-            "class_names": ["ContextRecall", "LLMContextRecall"],
-        },
-    ]
-
     selected_metrics: list[Any] = []
 
-    for spec in metric_specs:
-        metric = None
+    # 1. Faithfulness
+    faithfulness_metric = getattr(metrics_module, "faithfulness", None)
+    if faithfulness_metric is None:
+        faithfulness_class = getattr(metrics_module, "Faithfulness", None)
+        if faithfulness_class is not None:
+            faithfulness_metric = faithfulness_class()
 
-        for object_name in spec["object_names"]:
-            candidate = getattr(metrics_module, object_name, None)
-            if candidate is not None:
-                metric = candidate
+    if faithfulness_metric is None:
+        raise RuntimeError("Could not import required RAGAS metric: faithfulness.")
+
+    selected_metrics.append(faithfulness_metric)
+
+    # 2. Answer relevancy
+    # Use the class directly when available so we can reduce strictness.
+    # This avoids some wrapper/aggregation failures observed with RAGAS + Mistral.
+    answer_relevancy_metric = None
+
+    answer_relevancy_class = getattr(metrics_module, "AnswerRelevancy", None)
+    if answer_relevancy_class is not None:
+        try:
+            answer_relevancy_metric = answer_relevancy_class(strictness=1)
+        except TypeError:
+            answer_relevancy_metric = answer_relevancy_class()
+    else:
+        answer_relevancy_metric = getattr(metrics_module, "answer_relevancy", None)
+        if answer_relevancy_metric is None:
+            answer_relevancy_metric = getattr(metrics_module, "answer_relevance", None)
+
+    if answer_relevancy_metric is None:
+        raise RuntimeError("Could not import required RAGAS metric: answer_relevancy.")
+
+    selected_metrics.append(answer_relevancy_metric)
+
+    # 3. Context precision
+    context_precision_metric = getattr(metrics_module, "context_precision", None)
+    if context_precision_metric is None:
+        for class_name in [
+            "ContextPrecision",
+            "LLMContextPrecisionWithReference",
+            "LLMContextPrecisionWithoutReference",
+        ]:
+            candidate_class = getattr(metrics_module, class_name, None)
+            if candidate_class is not None:
+                context_precision_metric = candidate_class()
                 break
 
-        if metric is None:
-            for class_name in spec["class_names"]:
-                candidate_class = getattr(metrics_module, class_name, None)
-                if candidate_class is not None:
-                    metric = candidate_class()
-                    break
+    if context_precision_metric is None:
+        raise RuntimeError("Could not import required RAGAS metric: context_precision.")
 
-        if metric is None:
-            raise RuntimeError(
-                f"Could not import required RAGAS metric: {spec['label']}. "
-                "Your installed RAGAS version may have an incompatible API. "
-                "Use: pip install \"ragas>=0.2,<0.4\""
-            )
+    selected_metrics.append(context_precision_metric)
 
-        selected_metrics.append(metric)
+    # 4. Context recall
+    context_recall_metric = getattr(metrics_module, "context_recall", None)
+    if context_recall_metric is None:
+        for class_name in ["ContextRecall", "LLMContextRecall"]:
+            candidate_class = getattr(metrics_module, class_name, None)
+            if candidate_class is not None:
+                context_recall_metric = candidate_class()
+                break
+
+    if context_recall_metric is None:
+        raise RuntimeError("Could not import required RAGAS metric: context_recall.")
+
+    selected_metrics.append(context_recall_metric)
 
     return selected_metrics
 
@@ -726,6 +748,59 @@ def build_ragas_evaluator_models() -> tuple[Any, Any]:
     except Exception:
         # Some RAGAS versions auto-wrap LangChain models inside evaluate().
         return langchain_llm, langchain_embeddings
+    
+def debug_ragas_embedding_shape() -> None:
+    """
+    Print the shape/type returned by the embedding model used by RAGAS.
+
+    This is a diagnostic helper for answer_relevancy failures. The answer_relevancy
+    metric relies on embedding similarity, so the embedding output must be a numeric
+    vector or list of numeric vectors.
+    """
+    config = load_config()
+    embeddings = get_embeddings(config)
+
+    print()
+    print("=" * 100)
+    print("RAGAS embedding diagnostic")
+    print("=" * 100)
+
+    single_result = embeddings.embed_query("Je cherche une exposition à Paris")
+    print(f"embed_query type: {type(single_result).__name__}")
+
+    if isinstance(single_result, list):
+        print(f"embed_query length: {len(single_result)}")
+        print(
+            "embed_query first item type: "
+            f"{type(single_result[0]).__name__ if single_result else 'EMPTY'}"
+        )
+        print(f"embed_query first 5 values: {single_result[:5]}")
+    else:
+        print(f"embed_query value preview: {repr(single_result)[:500]}")
+
+    batch_result = embeddings.embed_documents(
+        [
+            "Je cherche une exposition à Paris",
+            "Quels événements culturels sont proposés ?",
+        ]
+    )
+    print(f"embed_documents type: {type(batch_result).__name__}")
+
+    if isinstance(batch_result, list):
+        print(f"embed_documents length: {len(batch_result)}")
+        first_vector = batch_result[0] if batch_result else None
+        print(
+            "embed_documents first item type: "
+            f"{type(first_vector).__name__ if first_vector is not None else 'EMPTY'}"
+        )
+
+        if isinstance(first_vector, list):
+            print(f"embed_documents first vector length: {len(first_vector)}")
+            print(f"embed_documents first vector first 5 values: {first_vector[:5]}")
+        else:
+            print(f"embed_documents first item preview: {repr(first_vector)[:500]}")
+    else:
+        print(f"embed_documents value preview: {repr(batch_result)[:500]}")
 
 
 def call_ragas_evaluate(dataset: Dataset, metrics: list[Any]) -> Any:
@@ -807,7 +882,11 @@ def is_number(value: Any) -> bool:
 
 def find_metric_columns(dataframe: Any) -> list[str]:
     """
-    Detect numeric metric columns in a RAGAS results dataframe.
+    Detect metric columns in a RAGAS results dataframe.
+
+    Requested RAGAS metrics are kept when present, even if all values are null.
+    This is important for documenting metrics such as answer_relevancy that were
+    attempted but failed to produce usable numeric scores.
 
     Args:
         dataframe: pandas DataFrame.
@@ -817,7 +896,14 @@ def find_metric_columns(dataframe: Any) -> list[str]:
     """
     metric_columns: list[str] = []
 
+    for metric_name in REQUESTED_RAGAS_METRIC_NAMES:
+        if metric_name in dataframe.columns:
+            metric_columns.append(metric_name)
+
     for column in dataframe.columns:
+        if column in metric_columns:
+            continue
+
         if column in KNOWN_NON_METRIC_COLUMNS:
             continue
 
@@ -834,6 +920,62 @@ def find_metric_columns(dataframe: Any) -> list[str]:
 
     return metric_columns
 
+def build_metric_availability_summary(
+    dataframe: Any,
+    metric_columns: list[str],
+) -> dict[str, dict[str, int] | list[str]]:
+    """
+    Build metric availability diagnostics.
+
+    Args:
+        dataframe: detailed RAGAS results dataframe.
+        metric_columns: metric columns to inspect.
+
+    Returns:
+        dict[str, Any]: valid counts, null counts, missing/unavailable metrics.
+    """
+    metric_valid_counts: dict[str, int] = {}
+    metric_null_counts: dict[str, int] = {}
+    missing_or_unavailable_metrics: list[str] = []
+
+    row_count = len(dataframe)
+
+    for metric_name in REQUESTED_RAGAS_METRIC_NAMES:
+        if metric_name not in dataframe.columns:
+            metric_valid_counts[metric_name] = 0
+            metric_null_counts[metric_name] = row_count
+            missing_or_unavailable_metrics.append(metric_name)
+            continue
+
+        values = dataframe[metric_name].tolist()
+        valid_count = sum(1 for value in values if is_number(value))
+        null_count = row_count - valid_count
+
+        metric_valid_counts[metric_name] = valid_count
+        metric_null_counts[metric_name] = null_count
+
+        if valid_count == 0:
+            missing_or_unavailable_metrics.append(metric_name)
+
+    for metric_name in metric_columns:
+        if metric_name in metric_valid_counts:
+            continue
+
+        values = dataframe[metric_name].tolist()
+        valid_count = sum(1 for value in values if is_number(value))
+        null_count = row_count - valid_count
+
+        metric_valid_counts[metric_name] = valid_count
+        metric_null_counts[metric_name] = null_count
+
+        if valid_count == 0:
+            missing_or_unavailable_metrics.append(metric_name)
+
+    return {
+        "metric_valid_counts": metric_valid_counts,
+        "metric_null_counts": metric_null_counts,
+        "missing_or_unavailable_metrics": missing_or_unavailable_metrics,
+    }
 
 def build_summary(
     dataframe: Any,
@@ -871,6 +1013,11 @@ def build_summary(
         else:
             metric_means[column] = None
 
+    metric_availability = build_metric_availability_summary(
+        dataframe=dataframe,
+        metric_columns=metric_columns,
+    )
+
     failed_rows = 0
 
     if "error" in dataframe.columns:
@@ -881,14 +1028,22 @@ def build_summary(
         "dataset_path": str(DEFAULT_DATASET_PATH),
         "row_count": selected_row_count,
         "top_k": top_k,
+        "requested_metrics": REQUESTED_RAGAS_METRIC_NAMES,
         "metric_columns": metric_columns,
         "metric_means": metric_means,
+        "metric_valid_counts": metric_availability["metric_valid_counts"],
+        "metric_null_counts": metric_availability["metric_null_counts"],
+        "missing_or_unavailable_metrics": metric_availability[
+            "missing_or_unavailable_metrics"
+        ],
         "failed_rag_rows": failed_rows,
         "results_csv_path": str(output_csv_path),
         "answer_trace_jsonl_path": str(answer_trace_path) if answer_trace_path else None,
         "notes": (
             "Scores are LLM-judge based and can vary slightly between runs. "
-            "Use them as comparative POC indicators, not absolute truth."
+            "Use them as comparative POC indicators, not absolute truth. "
+            "Metrics listed in missing_or_unavailable_metrics were requested but "
+            "did not produce usable numeric scores for this run."
         ),
     }
 
@@ -928,6 +1083,10 @@ def main() -> int:
     """
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.debug_ragas_embeddings:
+        debug_ragas_embedding_shape()
+        return 0
 
     if args.top_k < 1:
         parser.error("--top-k must be >= 1")
@@ -1016,10 +1175,22 @@ def main() -> int:
         print()
         print("Metric means:")
         for metric_name, value in summary["metric_means"].items():
+            valid_count = summary["metric_valid_counts"].get(metric_name, 0)
+            null_count = summary["metric_null_counts"].get(metric_name, 0)
+
             if value is None:
-                print(f"- {metric_name}: N/A")
+                print(f"- {metric_name}: N/A ({valid_count} valid, {null_count} null)")
             else:
-                print(f"- {metric_name}: {value:.4f}")
+                print(
+                    f"- {metric_name}: {value:.4f} "
+                    f"({valid_count} valid, {null_count} null)"
+                )
+
+        if summary["missing_or_unavailable_metrics"]:
+            print()
+            print("Missing or unavailable metrics:")
+            for metric_name in summary["missing_or_unavailable_metrics"]:
+                print(f"- {metric_name}")
 
         return 0
 
