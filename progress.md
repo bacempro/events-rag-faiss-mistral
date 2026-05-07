@@ -3,7 +3,7 @@
 ## Metadata
 - Project: Puls-Events RAG POC — OpenClassrooms Data Engineer Project 11
 - Current step: Step 4 — Implement the LangChain + Mistral RAG system and evaluation workflow
-- Status: Step 4 in progress — RAG system, CLI, RAG pipeline tests, annotated QA dataset, and full RAGAS POC evaluation completed; output validation tests, dependency-file updates, and demo checklist still pending before final Step 4 closure
+- Status: Step 4 completed — RAG system, CLI, RAG pipeline tests, annotated QA dataset, full RAGAS evaluation with all four metrics, and dependency-file updates completed
 - Last updated: 2026-05-07
 - Source files reviewed:
   - `Project11_PlusEvents_Exercice_text.txt`
@@ -17,6 +17,8 @@
   - `scripts/evaluate_ragas.py`
   - `tests/test_rag_pipeline.py`
   - `tests/test_evaluation_dataset.py`
+  - `reports/ragas_evaluation_summary.json`
+  - `reports/ragas_evaluation_results.csv`
 - Related project files:
   - `requirements.txt`
   - `environment.yml`
@@ -59,8 +61,8 @@ pulsevents/
 ├── .env — local secrets/config; contains `MISTRAL_API_KEY` and may contain RAG/OpenAgenda settings; not committed
 ├── .env.example — environment-variable template
 ├── .gitignore — excludes local env files, caches, and generated artifacts as configured
-├── environment.yml — Conda environment definition; still needs RAGAS/datasets additions if not already updated locally
-├── requirements.txt — pip dependency list; still needs RAGAS/datasets additions if not already updated locally
+├── environment.yml — Conda environment definition; includes RAGAS/datasets dependencies per user confirmation
+├── requirements.txt — pip dependency list; includes RAGAS/datasets dependencies per user confirmation
 ├── progress.md — current project working memory
 │
 ├── data/
@@ -87,8 +89,8 @@ pulsevents/
 │   ├── ragas_answer_traces_full.jsonl — generated during pre-correction trace inspection, if kept locally
 │   ├── ragas_answer_traces_full_v2.jsonl — corrected-dataset trace used to verify retrieval alignment, if kept locally
 │   ├── ragas_answer_traces.jsonl — final full RAGAS answer trace output
-│   ├── ragas_evaluation_results.csv — final full RAGAS detailed metric output
-│   └── ragas_evaluation_summary.json — final full RAGAS summary output
+│   ├── ragas_evaluation_results.csv — final full RAGAS detailed metric output with all four metric columns
+│   └── ragas_evaluation_summary.json — final full RAGAS summary output with all four metrics and metric availability counts
 │
 ├── scripts/
 │   ├── build_faiss_index.py — builds FAISS vectorstore from cleaned events with Mistral embeddings
@@ -98,7 +100,7 @@ pulsevents/
 │   ├── inspect_openagenda_raw.py — inspects raw OpenAgenda schema/completeness
 │   ├── inspect_rag_candidates.py — retrieval-only candidate extraction for QA dataset design
 │   ├── preprocess_events.py — normalizes raw OpenAgenda events into cleaned CSV
-│   ├── evaluate_ragas.py — runs RAG answers and RAGAS evaluation over annotated QA dataset
+│   ├── evaluate_ragas.py — runs RAG answers and RAGAS evaluation; includes answer_relevancy stability fix and metric availability summary
 │   ├── search_faiss_index.py — semantic-search smoke test utility
 │   └── setup_environment.py — creates/reuses Conda environment and installs dependencies
 │
@@ -880,7 +882,6 @@ pytest tests/test_vectorstore_data.py -v
 - Generate grounded answers with a Mistral chat model.
 - Provide a CLI/demo interface for manual validation.
 - Later in this same consolidated step, create the annotated QA dataset, run RAGAS evaluation, add RAG behavior tests, add evaluation dataset tests, and validate RAGAS outputs.
-- Keep README, technical report, and PowerPoint out of scope until the user explicitly moves to those deliverables.
 
 ### Constraints
 - Use the existing locally generated FAISS vectorstore under `vectorstore/faiss_index/`.
@@ -906,10 +907,6 @@ pytest tests/test_vectorstore_data.py -v
   - RAGAS evaluation
   - RAG behavior tests
   - evaluation dataset tests
-  - optional RAGAS output tests
-  - demo checklist
-  - final validation sequence
-- Confirmed that README, technical report, and PowerPoint are still out of scope for this step.
 - Created RAG core module:
   - `src/pulsevents_rag/rag_chain.py`
 - Implemented public function:
@@ -1159,7 +1156,6 @@ python scripts/chat_with_events.py --interactive
 - Should the CLI output format be considered final, or should it be simplified before the live demo?
 
 ### Next Step Notes
-- Continue Step 4 only; do not move to README, report, or PowerPoint yet.
 - Before RAGAS, complete enough manual RAG behavior validation to be confident that retrieval and generation are stable.
 - Recommended next implementation order:
   1. Add `tests/test_rag_pipeline.py` for import, vectorstore loading, retrieval behavior, output structure, and negative-query behavior without brittle exact LLM wording.
@@ -1168,8 +1164,6 @@ python scripts/chat_with_events.py --interactive
   4. Add `tests/test_evaluation_dataset.py` validating dataset structure, allowed question types, unique IDs, non-empty expected answers, and event IDs existing in `data/processed/events_clean.csv`.
   5. Implement `scripts/evaluate_ragas.py` to call `answer_question(...)`, build a RAGAS-compatible dataset, run focused metrics, and write reports.
   6. Generate `reports/ragas_evaluation_results.csv` and `reports/ragas_evaluation_summary.json`.
-  7. Optionally add `tests/test_ragas_outputs.py` for structural validation after RAGAS is run.
-  8. Add `reports/demo_checklist.md` near the end of Step 4.
 - For RAGAS, use focused metrics from the handoff:
   - faithfulness
   - answer relevancy
@@ -1213,7 +1207,6 @@ python scripts/chat_with_events.py --interactive
   - Do not rebuild the vectorstore unless there is a consistency issue.
   - Do not add conversation memory.
   - Do not invent QA expected answers; annotated answers must be based on actual retrieved/current dataset events.
-  - Do not work on README, technical report, or PowerPoint during this Step 4 partial implementation.
   - Do not update `progress.md` unless the user explicitly asks.
   - Do not assume exact current local implementation if debugging; ask the user for file contents or command outputs.
   - Continue providing full file contents in chat for scripts/tests unless the user asks otherwise.
@@ -1223,7 +1216,7 @@ python scripts/chat_with_events.py --interactive
 
 ## Step 4 — RAGAS evaluation and annotated QA workflow update
 - Date added: 2026-05-07
-- Status: RAGAS POC evaluation completed and handoff-valid; Step 4 remains in progress until output validation tests, dependency files, and demo checklist are finalized.
+- Status: Superseded intermediate state — initial RAGAS POC evaluation completed but later corrected; see the final Step 4 closure entry dated 2026-05-07 for current results.
 
 ### Step Goal
 - Complete the evaluation side of the consolidated Step 4 workflow.
@@ -1308,7 +1301,7 @@ python scripts/chat_with_events.py --interactive
   - `faithfulness`: `0.7194`
   - `context_precision`: `0.6333`
   - `context_recall`: `0.4097`
-  - `answer_relevancy`: not present in `metric_columns`; attempted but unstable/not produced in this run.
+  - Later change note: this intermediate result was superseded by the final Step 4 closure run, where `answer_relevancy` produced valid numeric values for all 12 rows.
 
 ### Key Decisions
 - Decision: Align annotated QA references with the actual retriever output.
@@ -1319,9 +1312,9 @@ python scripts/chat_with_events.py --interactive
   - Reason: The evaluator completed all 12 rows, generated output files, had 0 failed RAG rows, and produced usable `faithfulness`, `context_precision`, and `context_recall` means.
   - Impact: The project can move to the next agent / next sub-step with a defensible evaluation baseline.
 
-- Decision: Document `answer_relevancy` as attempted but unstable/missing.
-  - Reason: `answer_relevancy` was not present in final `metric_columns`, likely due to RAGAS 0.3.9 + Mistral/LangChain wrapper compatibility issues.
-  - Impact: Final report should not claim an answer-relevancy score for this run.
+- Decision: Initially document `answer_relevancy` as unavailable for that intermediate run.
+  - Reason: The first full RAGAS run did not produce usable answer-relevancy values.
+  - Impact: Later superseded by the final Step 4 closure fix using `AnswerRelevancy(strictness=1)`, which produced valid answer-relevancy values for all 12 rows.
 
 - Decision: Treat the RAGAS scores as comparative POC indicators.
   - Reason: The summary notes the scores are LLM-judge-based and may vary between runs.
@@ -1371,8 +1364,6 @@ python scripts/chat_with_events.py --interactive
   - `reports/ragas_evaluation_summary.json`
 - The reported final RAGAS metric means come from the generated summary/terminal output supplied by the user.
 - `requirements.txt` and `environment.yml` may not yet include the new RAGAS/datasets dependencies; this still needs verification/update.
-- `tests/test_ragas_outputs.py` has not been created yet.
-- `reports/demo_checklist.md` has not been created yet.
 
 ### Files Created
 - `tests/test_rag_pipeline.py` — structural/runtime tests for the RAG pipeline.
@@ -1467,7 +1458,7 @@ python scripts/chat_with_events.py --interactive
   - Important notes:
     - Uses RAGAS metrics `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall` when importable.
     - Uses `raise_exceptions=False` if supported by installed RAGAS.
-    - `answer_relevancy` was unstable/missing in the final RAGAS run.
+    - Later change note: the answer-relevancy issue was fixed in the final Step 4 closure update. Current script constructs `AnswerRelevancy(strictness=1)` when available.
     - On Windows local runtime, run this first if the OpenMP duplicate runtime conflict appears:
       ```powershell
       $env:KMP_DUPLICATE_LIB_OK="TRUE"
@@ -1540,24 +1531,16 @@ Get-Content reports/ragas_evaluation_summary.json
     - `faithfulness = 0.7194`
     - `context_precision = 0.6333`
     - `context_recall = 0.4097`
-    - `answer_relevancy` missing/unstable.
+    - Later change note: this intermediate result was superseded; final answer-relevancy score is available.
 
 ### Blockers / Risks
-- `answer_relevancy` was attempted but not produced as a usable metric in the final run.
-- RAGAS 0.3.9 produced internal metric-level exceptions/timeouts with the current Mistral/LangChain wrapper setup.
+- Later change note: the earlier answer-relevancy failure was fixed in the final Step 4 closure update.
+- RAGAS 0.3.9 previously produced internal metric-level exceptions/timeouts with the default answer-relevancy path; current script uses `AnswerRelevancy(strictness=1)` when available.
 - The evaluation pipeline is acceptable for POC indicators but not production-stable.
 - `context_recall = 0.4097` indicates retrieved contexts do not always cover all expected reference information.
 - `context_precision = 0.6333` indicates relevant material is often retrieved, but retrieval also includes noise.
-- CSV mojibake was observed in copied terminal/CSV output on Windows/Excel; future improvement could write CSV with `encoding="utf-8-sig"`.
-- `requirements.txt` and `environment.yml` still need verification/update for `ragas` and `datasets`.
-- `tests/test_ragas_outputs.py` is not yet implemented.
-- `reports/demo_checklist.md` is not yet implemented.
-- README, technical report, and PowerPoint remain out of scope for this Step 4 update and must not claim unimplemented production hardening.
 
 ### Open Questions
-- Should `scripts/evaluate_ragas.py` be updated to write CSV with `utf-8-sig` for Excel-friendly Windows opening?
-- Should `scripts/evaluate_ragas.py` add null metric counts to `ragas_evaluation_summary.json`?
-- Should `answer_relevancy` remain in the default metric list, or should metric selection be configurable to avoid unstable metrics during demos?
 - Should generated RAGAS reports be committed, regenerated during setup, or kept as local artifacts for report writing only?
 - Should generated FAISS vectorstore artifacts be committed or rebuilt on demand in final packaging?
 
@@ -1566,14 +1549,7 @@ Get-Content reports/ragas_evaluation_summary.json
   - Step 4 RAGAS evaluation completed successfully on 12 annotated QA rows.
   - Outputs were generated under `reports/`.
   - RAG pipeline had 0 failed rows.
-  - RAGAS produced usable `faithfulness`, `context_precision`, and `context_recall` metrics.
-  - `answer_relevancy` was unstable/missing due to likely RAGAS/Mistral/LangChain compatibility issues.
-- Recommended next sub-steps before final Step 4 closure:
-  1. Add `tests/test_ragas_outputs.py` to validate generated report structure and summary fields.
-  2. Update `requirements.txt` and `environment.yml` with `ragas`/`datasets` dependencies after confirming the desired version pins.
-  3. Optionally update `scripts/evaluate_ragas.py` for UTF-8-SIG CSV, null metric counts, and configurable metric selection.
-  4. Add `reports/demo_checklist.md` for live demo readiness.
-  5. Then proceed to README, technical report, PowerPoint, and final packaging when explicitly requested.
+  - RAGAS now produces usable `faithfulness`, `answer_relevancy`, `context_precision`, and `context_recall` metrics after the final Step 4 closure fix.
 
 ### Resume Context for AI
 - Important technical facts:
@@ -1586,8 +1562,7 @@ Get-Content reports/ragas_evaluation_summary.json
   - QA references were corrected after trace inspection to align with actual retrieved events.
   - `scripts/evaluate_ragas.py` exists and produced final full RAGAS outputs.
   - Full RAGAS run used `top_k=5`, selected all 12 rows, and had 0 failed RAG rows.
-  - Final usable metrics: `faithfulness=0.7194`, `context_precision=0.6333`, `context_recall=0.4097`.
-  - `answer_relevancy` is missing/unstable and must be documented as unavailable for this run.
+  - Later change note: intermediate metrics were superseded by the final Step 4 closure run with all four metrics available.
   - Local Windows workaround used before RAGAS: `$env:KMP_DUPLICATE_LIB_OK="TRUE"`.
   - RAGAS internal metric-level failures were observed but did not abort the run because exceptions were not raised at pipeline level.
   - RAGAS results are valid POC indicators, not production-grade evaluation proof.
@@ -1599,11 +1574,343 @@ Get-Content reports/ragas_evaluation_summary.json
   - Do not rebuild the vectorstore unless there is a consistency issue.
   - Do not add conversation memory.
   - Do not reintroduce unaligned QA references; QA reference event IDs must remain grounded in actual retrieved/current dataset events.
-  - Do not claim an `answer_relevancy` score unless a later stable run produces it.
+  - Later change note: a stable final run did produce an `answer_relevancy` score; current value is recorded in the final Step 4 closure entry.
   - Do not treat `KMP_DUPLICATE_LIB_OK=TRUE` as a production solution.
-  - Do not work on README, technical report, or PowerPoint unless the user explicitly requests that next.
   - Continue the user's one-file/sub-step workflow for new scripts/files.
 
 - Later change notes affecting this step:
   - None yet after this update.
 
+
+## Step 4 — Final RAGAS metric fix and closure
+- Date added: 2026-05-07
+- Status: Completed
+
+### Step Goal
+- Finalize the consolidated Step 4 RAG implementation and evaluation workflow.
+- Fix the missing `answer_relevancy` RAGAS metric so all selected metrics produce usable numeric values.
+- Preserve clear RAGAS output diagnostics in `reports/ragas_evaluation_summary.json`.
+- Record the final evaluation scores and closure state for future continuation.
+
+### Constraints
+- Keep the existing RAG architecture: LangChain + Mistral + local FAISS vectorstore.
+- Keep the existing corrected 12-row annotated QA dataset.
+- Do not rebuild the FAISS vectorstore unless a consistency issue is found.
+- Do not add conversation memory.
+- Do not change the selected geographic scope from Paris.
+- Do not add new RAGAS output tests; user decided no additional tests are needed for this closure.
+- Do not treat separate demo-support checklist work as part of Step 4 closure.
+- Do not update CSV encoding behavior unless the user asks later.
+- Do not make RAGAS metric selection configurable unless the user asks later.
+
+### Work Completed
+- Updated `scripts/evaluate_ragas.py` summary behavior so requested metrics remain visible even when RAGAS returns only null values.
+- Added stable requested metric tracking through `REQUESTED_RAGAS_METRIC_NAMES`:
+  - `faithfulness`
+  - `answer_relevancy`
+  - `context_precision`
+  - `context_recall`
+- Updated metric-column detection so requested metrics are included in `metric_columns` when present in the RAGAS dataframe, even if all values are null.
+- Added metric availability diagnostics to the summary JSON:
+  - `requested_metrics`
+  - `metric_valid_counts`
+  - `metric_null_counts`
+  - `missing_or_unavailable_metrics`
+- Diagnosed the `answer_relevancy` failure:
+  - Raw Mistral embeddings were verified to be valid numeric vectors.
+  - `embed_query(...)` returned `list[float]` with length `1024`.
+  - `embed_documents(...)` returned `list[list[float]]` with first vector length `1024`.
+  - Therefore, the root issue was not the raw Mistral embedding output.
+- Interpreted the RAGAS job failures:
+  - Full RAGAS run had `48` jobs = `12` rows × `4` metrics.
+  - Errors appeared on jobs `1`, `5`, `9`, etc.
+  - Because `answer_relevancy` was the second metric, these failures mapped to the answer-relevancy metric for each row.
+  - The likely issue was an instability in the RAGAS + LangChain/Mistral wrapper path used by answer relevancy.
+- Updated `import_ragas_metrics()` so `answer_relevancy` is instantiated from `AnswerRelevancy(strictness=1)` when the class is available, with fallback behavior for compatible RAGAS versions.
+- Ran a 2-row smoke test after the change.
+  - `answer_relevancy` produced valid numeric values.
+  - Smoke summary result: `answer_relevancy = 0.8184370856496744`.
+  - Smoke valid count: `answer_relevancy = 2`.
+  - Smoke null count: `answer_relevancy = 0`.
+- Ran the final full 12-row RAGAS evaluation after the fix.
+  - All selected metrics produced valid numeric scores for all 12 rows.
+  - `failed_rag_rows = 0`.
+  - `missing_or_unavailable_metrics = []`.
+- User confirmed `requirements.txt` and `environment.yml` were updated for the RAGAS/datasets dependencies.
+- Step 4 is now considered complete.
+
+### Final RAGAS Results
+- Evaluation file: `reports/ragas_evaluation_summary.json`.
+- Detailed CSV: `reports/ragas_evaluation_results.csv`.
+- Answer traces: `reports/ragas_answer_traces.jsonl`.
+- Dataset: `data/evaluation/annotated_qa_dataset.jsonl`.
+- Rows evaluated: `12`.
+- Retrieval depth: `top_k = 5`.
+- Failed RAG rows: `0`.
+- Requested metrics:
+  - `faithfulness`
+  - `answer_relevancy`
+  - `context_precision`
+  - `context_recall`
+- Final metric means:
+  - `faithfulness = 0.7879089864383982`
+  - `answer_relevancy = 0.69473526155628`
+  - `context_precision = 0.4795138888528732`
+  - `context_recall = 0.4791666666666667`
+- Final valid counts:
+  - `faithfulness = 12`
+  - `answer_relevancy = 12`
+  - `context_precision = 12`
+  - `context_recall = 12`
+- Final null counts:
+  - `faithfulness = 0`
+  - `answer_relevancy = 0`
+  - `context_precision = 0`
+  - `context_recall = 0`
+- Missing or unavailable metrics: none.
+
+### Result Interpretation
+- `faithfulness ≈ 0.788`: good POC-level grounding; generated answers are mostly supported by retrieved contexts.
+- `answer_relevancy ≈ 0.695`: acceptable POC-level answer relevance; answers generally address the user questions but are not perfect.
+- `context_precision ≈ 0.480`: moderate/low retrieval precision; retrieved contexts contain relevant material but also noise.
+- `context_recall ≈ 0.479`: moderate/low retrieval recall; retrieved contexts do not always cover all reference information.
+- Overall conclusion: the RAG POC is functional and evaluable, but retrieval quality should be improved before production use.
+
+### Key Decisions
+- Decision: Keep all four RAGAS metrics in the evaluation.
+  - Reason: The project needs answer-quality evaluation against annotated Q/A references, and `answer_relevancy` is now functioning after the targeted fix.
+  - Impact: The final evaluation has a complete four-metric RAGAS result set.
+
+- Decision: Use `AnswerRelevancy(strictness=1)` when available.
+  - Reason: The default answer-relevancy execution path was unstable with the current RAGAS + LangChain/Mistral wrapper combination and produced `TypeError(unsupported operand type(s) for +=: 'dict' and 'dict')` across answer-relevancy jobs.
+  - Impact: Answer relevancy now produces valid scores for all 12 QA rows.
+
+- Decision: Keep metric availability diagnostics in the summary JSON.
+  - Reason: It makes future metric failures explicit instead of silently dropping all-null metrics from the summary.
+  - Impact: Future runs can quickly show whether a metric is valid, partially null, or unavailable.
+
+- Decision: Treat dependency files as updated.
+  - Reason: User confirmed `requirements.txt` and `environment.yml` were updated after the RAGAS dependency additions.
+  - Impact: Reproducibility documentation can rely on those files, but exact version pins should be verified from the actual files if needed.
+
+### User Questions / Confusions / Problems
+- Question / confusion: User asked whether the first summary fix was enough because it only made missing `answer_relevancy` visible.
+  - Resolution / explanation: It was not enough for final evaluation quality. The summary fix exposed the real issue, but the metric itself had to be fixed so it produced numeric scores.
+  - Impact on project: `answer_relevancy` was prioritized as the first real remaining Step 4 issue.
+
+- Question / confusion: User asked whether the repeated `TypeError(unsupported operand type(s) for +=: 'dict' and 'dict')` was related to the missing `answer_relevancy` metric.
+  - Resolution / explanation: Yes. The job numbering pattern strongly indicated those errors mapped to the answer-relevancy metric for each QA row.
+  - Impact on project: Troubleshooting focused on RAGAS evaluator model/metric construction instead of changing the RAG pipeline.
+
+- Question / confusion: User needed to know whether the raw Mistral embeddings were the cause.
+  - Resolution / explanation: Diagnostic output showed raw embeddings were correct numeric vectors, so the likely fault was inside the RAGAS wrapper/metric execution path.
+  - Impact on project: The fix targeted `AnswerRelevancy` construction rather than replacing the embedding model.
+
+- Question / confusion: User asked whether the latest results are good enough.
+  - Resolution / explanation: They are good enough for a POC: all metrics now run, no RAG rows failed, and faithfulness is good. Retrieval precision/recall are moderate and should be documented as improvement areas.
+  - Impact on project: Step 4 can close with a defensible POC result and clear limitations.
+
+### Learning Notes Discussed
+- Topic: RAGAS answer relevancy metric behavior.
+  - What was learned: Answer relevancy is more fragile than the other selected metrics because it requires generated reverse questions plus embedding similarity.
+  - Why it matters here: A failure in answer relevancy can occur even when faithfulness, context precision, and context recall work.
+
+- Topic: Diagnosing metric-level RAGAS failures.
+  - What was learned: In a run with 12 rows and 4 metrics, RAGAS creates 48 jobs. Repeated failures every 4 jobs can identify which metric is failing.
+  - Why it matters here: This made it possible to map the `dict += dict` errors to answer relevancy.
+
+- Topic: Metric availability reporting.
+  - What was learned: A summary that only includes numeric columns can hide failed/all-null metrics.
+  - Why it matters here: The final summary now records valid counts, null counts, and unavailable metrics explicitly.
+
+### Assumptions
+- User copied the final `scripts/evaluate_ragas.py` changes locally.
+- User's final full RAGAS run used the corrected 12-row QA dataset.
+- User's final full RAGAS run generated or refreshed:
+  - `reports/ragas_answer_traces.jsonl`
+  - `reports/ragas_evaluation_results.csv`
+  - `reports/ragas_evaluation_summary.json`
+- User updated `requirements.txt` and `environment.yml` with RAGAS/datasets dependencies, but exact dependency pins were not reviewed in this chat.
+- The local Windows workaround may still be needed before RAGAS execution if the OpenMP duplicate-runtime issue appears:
+  ```powershell
+  $env:KMP_DUPLICATE_LIB_OK="TRUE"
+  ```
+
+### Files Created
+- None in this closure sub-step.
+
+### Files Updated
+- `scripts/evaluate_ragas.py` — added requested metric tracking, metric availability summary fields, and stable `answer_relevancy` construction through `AnswerRelevancy(strictness=1)` when available.
+- `reports/ragas_evaluation_summary.json` — regenerated with all four metrics, valid/null counts, and no unavailable metrics.
+- `reports/ragas_evaluation_results.csv` — regenerated from the final full RAGAS run.
+- `reports/ragas_answer_traces.jsonl` — regenerated or refreshed during the final full RAGAS run.
+- `requirements.txt` — user confirmed RAGAS/datasets dependency updates.
+- `environment.yml` — user confirmed RAGAS/datasets dependency updates.
+- `progress.md` — updated current metadata/arborescence and appended this final Step 4 closure entry.
+
+### Script Interfaces / Usage
+- `scripts/evaluate_ragas.py`
+  - Purpose: run RAG over annotated QA rows and evaluate outputs with RAGAS.
+  - Public functions / methods:
+    - `load_jsonl(path: Path) -> list[dict[str, Any]]` — loads the annotated QA dataset.
+    - `validate_qa_rows(rows: list[dict[str, Any]]) -> None` — validates the QA dataset schema needed by the evaluator.
+    - `select_rows(rows, question_ids, limit) -> list[dict[str, Any]]` — selects QA rows by ID or limit.
+    - `run_rag_for_row(row, top_k, continue_on_error) -> dict[str, Any]` — runs the RAG pipeline for one QA row.
+    - `build_rag_answer_rows(qa_rows, top_k, continue_on_error) -> list[dict[str, Any]]` — runs RAG for selected rows.
+    - `build_ragas_dataset(answer_rows: list[dict[str, Any]]) -> Dataset` — builds the RAGAS-compatible dataset.
+    - `import_ragas_metrics() -> list[Any]` — imports selected RAGAS metrics; constructs `AnswerRelevancy(strictness=1)` when available.
+    - `build_ragas_evaluator_models() -> tuple[Any, Any]` — builds RAGAS evaluator LLM and embeddings from the existing Mistral/LangChain configuration.
+    - `call_ragas_evaluate(dataset: Dataset, metrics: list[Any]) -> Any` — calls `ragas.evaluate(...)` with supported arguments and `raise_exceptions=False` when available.
+    - `result_to_dataframe(result: Any) -> Any` — converts the RAGAS result to a pandas DataFrame.
+    - `find_metric_columns(dataframe: Any) -> list[str]` — detects metric columns while preserving requested metrics.
+    - `build_metric_availability_summary(dataframe, metric_columns) -> dict[str, Any]` — reports valid/null counts and unavailable metrics.
+    - `build_summary(dataframe, selected_row_count, top_k, output_csv_path, answer_trace_path) -> dict[str, Any]` — builds the final summary JSON.
+  - CLI / command examples:
+    ```bash
+    python scripts/evaluate_ragas.py --limit 2 --skip-ragas --answers-jsonl reports/ragas_answer_traces_smoke.jsonl
+    python scripts/evaluate_ragas.py --limit 2 --answers-jsonl reports/ragas_answer_traces_smoke.jsonl
+    python scripts/evaluate_ragas.py --top-k 5 --answers-jsonl reports/ragas_answer_traces.jsonl
+    python scripts/evaluate_ragas.py --question-id qa_001 --question-id qa_003
+    ```
+  - Inputs:
+    - `data/evaluation/annotated_qa_dataset.jsonl` by default.
+    - Existing RAG pipeline and vectorstore.
+    - RAGAS/datasets dependencies.
+    - `MISTRAL_API_KEY`.
+  - Outputs:
+    - `reports/ragas_answer_traces.jsonl` when `--answers-jsonl` is provided.
+    - `reports/ragas_evaluation_results.csv` by default.
+    - `reports/ragas_evaluation_summary.json` by default.
+  - Important notes:
+    - Uses RAGAS metrics `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`.
+    - Uses `AnswerRelevancy(strictness=1)` when available to avoid the previous answer-relevancy wrapper/aggregation failure.
+    - Uses `raise_exceptions=False` if supported by installed RAGAS so metric-level failures do not abort the whole run.
+    - Summary JSON includes `requested_metrics`, `metric_valid_counts`, `metric_null_counts`, and `missing_or_unavailable_metrics`.
+    - On Windows local runtime, run this first if the OpenMP duplicate-runtime conflict appears:
+      ```powershell
+      $env:KMP_DUPLICATE_LIB_OK="TRUE"
+      ```
+
+### Commands to Run
+```bash
+# From project root
+conda activate local-ai-rag
+
+# RAGAS smoke run
+python scripts/evaluate_ragas.py --limit 2 --answers-jsonl reports/ragas_answer_traces_smoke.jsonl
+
+# Full RAGAS evaluation run
+python scripts/evaluate_ragas.py --top-k 5 --answers-jsonl reports/ragas_answer_traces.jsonl
+```
+
+```powershell
+# PowerShell workaround if the local Windows OpenMP duplicate-runtime issue appears
+$env:KMP_DUPLICATE_LIB_OK="TRUE"
+
+python scripts/evaluate_ragas.py `
+  --top-k 5 `
+  --answers-jsonl reports/ragas_answer_traces.jsonl
+```
+
+### Validation
+- Check: 2-row RAGAS smoke run after the answer-relevancy fix.
+  - Expected result: `answer_relevancy` produces at least one valid numeric score.
+  - Actual result: `answer_relevancy = 0.8184370856496744`, valid count `2`, null count `0`.
+
+- Check: final full 12-row RAGAS run.
+  - Expected result: all selected metrics produce valid numeric values and `failed_rag_rows = 0`.
+  - Actual result:
+    - `row_count = 12`
+    - `top_k = 5`
+    - `faithfulness = 0.7879089864383982`
+    - `answer_relevancy = 0.69473526155628`
+    - `context_precision = 0.4795138888528732`
+    - `context_recall = 0.4791666666666667`
+    - all metric valid counts = `12`
+    - all metric null counts = `0`
+    - `missing_or_unavailable_metrics = []`
+    - `failed_rag_rows = 0`
+
+- Check: dependency files.
+  - Expected result: RAGAS/datasets dependencies are included in project dependency files.
+  - Actual result: user confirmed `requirements.txt` and `environment.yml` were updated.
+
+### Blockers / Risks
+- No Step 4 blockers remain.
+- RAGAS emitted deprecation warnings for `LangchainLLMWrapper` and `LangchainEmbeddingsWrapper`; this does not block the POC but should be considered for future maintenance.
+- RAGAS metrics are LLM-judge-based and can vary between runs.
+- The Windows `KMP_DUPLICATE_LIB_OK=TRUE` workaround is local/temporary and should not be treated as a production solution.
+- Retrieval quality is the main technical limitation:
+  - `context_precision ≈ 0.480` indicates retrieval noise.
+  - `context_recall ≈ 0.479` indicates incomplete retrieved context relative to annotated references.
+- Exact dependency pins in `requirements.txt` and `environment.yml` were not reviewed after the user updated them.
+- Generated FAISS and RAGAS artifacts may be local outputs; whether to commit or regenerate them remains a packaging decision.
+
+### Open Questions
+- Should generated FAISS vectorstore artifacts be committed or rebuilt on demand in final packaging?
+- Should generated RAGAS reports be committed as evidence artifacts or regenerated during setup?
+- Should future RAG improvement focus first on chunking, metadata filtering, reranking, or query expansion to improve context precision/recall?
+- Should future evaluation use a more stable modern RAGAS evaluator integration to avoid deprecated wrappers?
+
+### Next Step Notes
+- Step 4 is complete.
+- Current implementation/evaluation artifacts are sufficient for continuation.
+- Any future agent may ask to inspect these files for source details:
+  - `src/pulsevents_rag/rag_chain.py`
+  - `scripts/chat_with_events.py`
+  - `scripts/inspect_rag_candidates.py`
+  - `scripts/evaluate_ragas.py`
+  - `data/evaluation/annotated_qa_dataset.jsonl`
+  - `reports/ragas_answer_traces.jsonl`
+  - `reports/ragas_evaluation_results.csv`
+  - `reports/ragas_evaluation_summary.json`
+  - `requirements.txt`
+  - `environment.yml`
+- Key result to carry forward: the RAG POC is functional, evaluated, and produces all four selected RAGAS metrics with no failed RAG rows.
+
+### Resume Context for AI
+- Important technical facts:
+  - Project: Puls-Events RAG POC for OpenClassrooms Data Engineer Project 11.
+  - Steps 1–4 are complete and locally validated by the user.
+  - Conda environment name remains `local-ai-rag`.
+  - Geographic scope remains Paris.
+  - Data source remains OpenAgenda agenda slug `culture`, UID `86244142`.
+  - Processed event dataset contains 1030 clean rows from the earlier confirmed run.
+  - FAISS vectorstore was built with 1030 documents and 1898 chunks in the earlier confirmed run.
+  - Existing vectorstore path: `vectorstore/faiss_index/`.
+  - Embedding model: `mistral-embed` by default through `MISTRAL_EMBEDDING_MODEL`.
+  - Chat model: `mistral-small-latest` by default through `MISTRAL_CHAT_MODEL`, unless locally overridden.
+  - Main RAG module: `src/pulsevents_rag/rag_chain.py`.
+  - Main RAG function: `answer_question(question: str, top_k: int | None = None) -> dict[str, Any]`.
+  - CLI demo script: `scripts/chat_with_events.py`.
+  - Corrected annotated QA dataset: `data/evaluation/annotated_qa_dataset.jsonl`.
+  - QA dataset has 12 rows: 10 positive recommendation cases and 2 negative insufficient-context cases.
+  - Final RAGAS script: `scripts/evaluate_ragas.py`.
+  - Final RAGAS run: 12 rows, `top_k=5`, 0 failed RAG rows.
+  - Final RAGAS metrics:
+    - `faithfulness = 0.7879089864383982`
+    - `answer_relevancy = 0.69473526155628`
+    - `context_precision = 0.4795138888528732`
+    - `context_recall = 0.4791666666666667`
+  - Final RAGAS metric validity:
+    - all four requested metrics valid for all 12 rows
+    - all null counts are 0
+    - no missing or unavailable metrics
+  - `answer_relevancy` initially failed due to RAGAS wrapper/aggregation instability, then was fixed by constructing `AnswerRelevancy(strictness=1)` when available.
+  - RAGAS/datasets dependencies were added to `requirements.txt` and `environment.yml` per user confirmation.
+
+- Things not to change without confirmation:
+  - Do not rename Conda environment `local-ai-rag`.
+  - Do not switch from `faiss-cpu` to GPU FAISS.
+  - Do not change geographic scope from Paris.
+  - Do not rebuild the vectorstore unless there is a consistency issue.
+  - Do not add conversation memory.
+  - Do not reintroduce unaligned QA references; QA reference event IDs must remain grounded in actual retrieved/current dataset events.
+  - Do not remove the `AnswerRelevancy(strictness=1)` fix unless a replacement evaluator path is tested.
+  - Do not treat `KMP_DUPLICATE_LIB_OK=TRUE` as a production solution.
+  - Do not add more RAGAS output tests unless the user asks.
+  - Do not change CSV encoding behavior unless the user asks.
+  - Continue the user's one-file/sub-step workflow for new scripts/files.
+
+- Later change notes affecting this step:
+  - None after final Step 4 closure.
