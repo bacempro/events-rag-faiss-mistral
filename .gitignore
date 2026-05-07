@@ -24,3 +24,6 @@ reports/*.pptx
 
 # Notebooks
 .ipynb_checkpoints/
+
+#specific files
+progress.md
