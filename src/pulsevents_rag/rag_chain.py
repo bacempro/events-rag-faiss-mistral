@@ -266,6 +266,42 @@ def retrieve_relevant_documents(
     return normalized_results
 
 
+def deduplicate_by_event_id(
+    retrieved_documents: list[tuple[Document, float | None]],
+) -> list[tuple[Document, float | None]]:
+    """Keep only the best-scoring chunk per event, preserving original rank order.
+
+    FAISS scores are distances — lower is better. Because FAISS returns results
+    ordered by ascending score, the first chunk encountered for a given event_id
+    is always its best match. Subsequent chunks for the same event are dropped.
+
+    Chunks with no event_id in their metadata are always kept as-is.
+
+    Args:
+        retrieved_documents: retrieved documents with FAISS scores, ordered by score.
+
+    Returns:
+        list[tuple[Document, float | None]]: deduplicated list in original order.
+    """
+    seen_event_ids: set[str] = set()
+    deduplicated: list[tuple[Document, float | None]] = []
+
+    for document, score in retrieved_documents:
+        event_id = str(document.metadata.get("event_id", "")).strip()
+
+        if not event_id:
+            deduplicated.append((document, score))
+            continue
+
+        if event_id in seen_event_ids:
+            continue
+
+        seen_event_ids.add(event_id)
+        deduplicated.append((document, score))
+
+    return deduplicated
+
+
 def _safe_float(value: Any) -> float | None:
     """
     Convert numeric-like values to JSON-serializable floats.
@@ -582,6 +618,7 @@ def answer_question(question: str, top_k: int | None = None) -> dict[str, Any]:
         question=normalized_question,
         top_k=normalized_top_k,
     )
+    retrieved_documents = deduplicate_by_event_id(retrieved_documents)
 
     contexts = [document.page_content for document, _score in retrieved_documents]
     sources = format_sources(retrieved_documents)
@@ -629,6 +666,7 @@ __all__ = [
     "RagConfig",
     "answer_question",
     "build_prompt",
+    "deduplicate_by_event_id",
     "format_context",
     "format_sources",
     "get_chat_model",

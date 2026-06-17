@@ -1,6 +1,6 @@
 {
   "created_at_utc": "2026-05-07T18:11:07.936826+00:00",
-  "dataset_path": "C:\\Users\\Bacem\\Desktop\\Projects\\DataEng\\OPENCLASSROOMS\\Projects\\Projet_11_PulsEvents\\pulsevents\\data\\evaluation\\annotated_qa_dataset.jsonl",
+  "dataset_path": "data\\evaluation\\annotated_qa_dataset.jsonl",
   "row_count": 12,
   "top_k": 5,
   "requested_metrics": [
@@ -35,7 +35,7 @@
   },
   "missing_or_unavailable_metrics": [],
   "failed_rag_rows": 0,
-  "results_csv_path": "C:\\Users\\Bacem\\Desktop\\Projects\\DataEng\\OPENCLASSROOMS\\Projects\\Projet_11_PulsEvents\\pulsevents\\reports\\ragas_evaluation_results.csv",
+  "results_csv_path": "reports\\ragas_evaluation_results.csv",
   "answer_trace_jsonl_path": "reports\\ragas_answer_traces.jsonl",
   "notes": "Scores are LLM-judge based and can vary slightly between runs. Use them as comparative POC indicators, not absolute truth. Metrics listed in missing_or_unavailable_metrics were requested but did not produce usable numeric scores for this run."
 }

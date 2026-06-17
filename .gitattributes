@@ -1,0 +1,8 @@
+# Normalize line endings: store text as LF in the repo, check out native on Windows.
+* text=auto eol=lf
+
+# Treat known binary/data artifacts as binary (no EOL normalization).
+*.faiss binary
+*.pkl binary
+*.csv text eol=lf
+*.jsonl text eol=lf

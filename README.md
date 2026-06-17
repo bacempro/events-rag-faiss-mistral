@@ -2,7 +2,7 @@
 
 A Retrieval-Augmented Generation (RAG) proof of concept that lets you ask natural-language questions about Paris cultural events and get grounded answers backed by real OpenAgenda data.
 
-Built as **OpenClassrooms Data Engineer Project 11**.
+Built as part of my **OpenClassrooms Data Engineer** path (Project 11). The scalable MVP design study that extends this POC lives in a separate write-up — see the *Puls-Events MVP design study*.
 
 ---
 
@@ -89,7 +89,7 @@ rag_chain.py  ──────────────  FAISS similarity searc
 ## Project Structure
 
 ```
-pulsevents/
+events-rag-faiss-mistral/
 ├── .env.example                   # Environment variable template (copy to .env)
 ├── environment.yml                # Conda environment definition
 ├── requirements.txt               # pip dependency list
@@ -161,7 +161,7 @@ pulsevents/
 
 ```bash
 git clone <repository-url>
-cd pulsevents
+cd events-rag-faiss-mistral
 ```
 
 **2. Create the Conda environment and install dependencies**
